@@ -11,6 +11,7 @@
     .btn-primary { background: #2980b9; color: white; }
     .btn-success { background: #27ae60; color: white; }
     .btn-warning { background: #e67e22; color: white; }
+    .btn-secondary { background: #95a5a6; color: white; }
     button:hover { opacity: 0.85; }
     table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
@@ -28,10 +29,42 @@
     .summary-bar { display: flex; gap: 20px; margin-bottom: 16px; }
     .summary-card { background: white; padding: 10px 16px; border-radius: 4px; border: 1px solid #ddd; }
     .summary-card span { font-weight: bold; font-size: 18px; }
+    .selection-panel { background: white; border: 1px solid #ddd; border-radius: 4px; padding: 14px 16px; margin-bottom: 16px; }
+    .selection-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+    .selection-row:last-child { margin-bottom: 0; }
+    .selection-row > label:first-child { min-width: 70px; font-weight: bold; color: #555; }
+    .check-label { display: flex; align-items: center; gap: 4px; font-size: 14px; }
+    select { padding: 5px 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; }
   </style>
 </head>
 <body>
   <h1>OrgCompare: {{ source_org }} → {{ target_org }}</h1>
+
+  <div class="selection-panel">
+    <div class="selection-row">
+      <label>Profile:</label>
+      <select id="profile-select" onchange="applyProfile()">
+        <option value="">Custom</option>
+      </select>
+      <button class="btn-secondary" onclick="saveCurrentProfile()">Save current as...</button>
+    </div>
+    <div class="selection-row">
+      <label>Metadata:</label>
+      {% for type in all_metadata_types %}
+      <label class="check-label">
+        <input type="checkbox" class="meta-check" value="{{ type }}" checked onchange="onSelectionChange()"> {{ type }}
+      </label>
+      {% endfor %}
+    </div>
+    <div class="selection-row">
+      <label>Data:</label>
+      {% for obj in all_data_objects %}
+      <label class="check-label">
+        <input type="checkbox" class="obj-check" value="{{ obj }}" checked onchange="onSelectionChange()"> {{ obj }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
 
   <div class="toolbar">
     <button class="btn-primary" onclick="runCompare()">&#8635; Run Compare</button>
@@ -81,6 +114,89 @@
   </table>
 
   <script>
+    // --- Profile state ---
+    let profilesData = {};
+
+    async function loadProfilesIntoDropdown() {
+      const res = await fetch('/profiles');
+      const data = await res.json();
+      profilesData = data.profiles || {};
+      const sel = document.getElementById('profile-select');
+      // Remove all options except "Custom"
+      while (sel.options.length > 1) sel.remove(1);
+      for (const name of Object.keys(profilesData).sort()) {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+      }
+    }
+
+    function applyProfile() {
+      const name = document.getElementById('profile-select').value;
+      if (!name) return;
+      const profile = profilesData[name];
+      if (!profile) return;
+      const metaSet = new Set(profile.metadata_types || []);
+      const objSet = new Set(profile.data_objects || []);
+      document.querySelectorAll('.meta-check').forEach(cb => {
+        cb.checked = metaSet.has(cb.value);
+      });
+      document.querySelectorAll('.obj-check').forEach(cb => {
+        cb.checked = objSet.has(cb.value);
+      });
+    }
+
+    function onSelectionChange() {
+      document.getElementById('profile-select').value = '';
+    }
+
+    async function saveCurrentProfile() {
+      const name = prompt('Profile name:');
+      if (!name || !name.trim()) return;
+      const metadata_types = Array.from(document.querySelectorAll('.meta-check:checked')).map(c => c.value);
+      const data_objects = Array.from(document.querySelectorAll('.obj-check:checked')).map(c => c.value);
+      const res = await fetch('/profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), metadata_types, data_objects }),
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        await loadProfilesIntoDropdown();
+        document.getElementById('profile-select').value = name.trim();
+        showStatus(`Profile '${name.trim()}' saved.`);
+      } else {
+        showStatus(`Error: ${data.error}`, false);
+      }
+    }
+
+    // --- Compare ---
+    function getSelection() {
+      return {
+        metadata_types: Array.from(document.querySelectorAll('.meta-check:checked')).map(c => c.value),
+        data_objects: Array.from(document.querySelectorAll('.obj-check:checked')).map(c => c.value),
+      };
+    }
+
+    async function runCompare() {
+      const selection = getSelection();
+      showStatus('Running compare — this may take a minute...');
+      const res = await fetch('/api/run-compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(selection),
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showStatus(`Compare complete: ${data.total} items. Refreshing...`);
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        showStatus(`Error: ${data.message}`, false);
+      }
+    }
+
+    // --- Deploy ---
     function toggleAll(cb) {
       document.querySelectorAll('.row-check').forEach(c => c.checked = cb.checked);
     }
@@ -98,17 +214,6 @@
         name: c.dataset.name,
         type: c.dataset.type,
       }));
-    }
-    async function runCompare() {
-      showStatus('Running compare — this may take a minute...');
-      const res = await fetch('/api/run-compare', { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        showStatus(`Compare complete: ${data.total} items. Refreshing...`);
-        setTimeout(() => location.reload(), 1500);
-      } else {
-        showStatus(`Error: ${data.message}`, false);
-      }
     }
     async function deploySelected() {
       const selected = getSelected();
@@ -129,6 +234,9 @@
       document.querySelectorAll('.row-check').forEach(c => c.checked = true);
       await deploySelected();
     }
+
+    // --- Init ---
+    loadProfilesIntoDropdown();
   </script>
 </body>
 </html>
