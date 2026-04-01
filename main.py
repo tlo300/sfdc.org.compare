@@ -9,7 +9,7 @@ def load_config() -> dict:
         return yaml.safe_load(f)
 
 
-def resolve_selection(args, config: dict) -> tuple:
+def resolve_selection(args: argparse.Namespace, config: dict) -> tuple:
     """Return (metadata_types, data_objects) based on CLI flags.
 
     Priority: --metadata/--objects > --profile > full config (default).
@@ -26,6 +26,11 @@ def resolve_selection(args, config: dict) -> tuple:
             else {o["name"] for o in config["data_objects"]}
         )
         data_objects = [o for o in config["data_objects"] if o["name"] in obj_names]
+        from orgcompare.profiles import validate_profile
+        validate_profile(
+            {"metadata_types": metadata_types, "data_objects": [o["name"] for o in data_objects]},
+            config,
+        )
         return metadata_types, data_objects
 
     if args.profile:
