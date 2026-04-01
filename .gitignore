@@ -3,3 +3,12 @@ __pycache__/
 *.pyc
 output/
 .env
+.sfdx/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+*.log
+Thumbs.db
