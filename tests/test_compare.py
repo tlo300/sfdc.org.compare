@@ -94,11 +94,20 @@ def test_save_and_load_results(tmp_path):
 
 
 def test_metadata_filter_excludes_other_types():
+    # Filter for only ApexClass — fixtures contain ApexClass files, so results should be non-empty
     results = compare_metadata(
+        str(FIXTURES_DIR / "DEVRCA"),
+        str(FIXTURES_DIR / "UATR"),
+        metadata_types=["ApexClass"],
+    )
+    types_found = {r.type for r in results}
+    assert types_found <= {"ApexClass"}
+    assert len(results) > 0  # confirms the filter is not accidentally excluding everything
+
+    # Filter for Flow — fixtures have no Flow files, result should be empty
+    results_flow = compare_metadata(
         str(FIXTURES_DIR / "DEVRCA"),
         str(FIXTURES_DIR / "UATR"),
         metadata_types=["Flow"],
     )
-    types_found = {r.type for r in results}
-    assert types_found <= {"Flow"}
-    assert "ApexClass" not in types_found
+    assert results_flow == []
