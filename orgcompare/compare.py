@@ -59,8 +59,14 @@ def _clean_name(rel_path: Path) -> str:
     return name
 
 
-def compare_metadata(source_dir: str, target_dir: str) -> List[DiffResult]:
-    """Compare metadata XML files between source and target directories."""
+def compare_metadata(
+    source_dir: str, target_dir: str, metadata_types: list | None = None
+) -> List[DiffResult]:
+    """Compare metadata XML files between source and target directories.
+
+    If metadata_types is provided, only files whose inferred type is in the
+    list are included. Pass None (default) to include all types.
+    """
     source_path = Path(source_dir)
     target_path = Path(target_dir)
 
@@ -76,6 +82,8 @@ def compare_metadata(source_dir: str, target_dir: str) -> List[DiffResult]:
     results = []
     for rel_path in sorted(set(source_files) | set(target_files)):
         type_name = _infer_type(rel_path)
+        if metadata_types is not None and type_name not in metadata_types:
+            continue
         name = _clean_name(rel_path)
         in_source = rel_path in source_files
         in_target = rel_path in target_files

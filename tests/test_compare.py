@@ -91,3 +91,14 @@ def test_save_and_load_results(tmp_path):
     assert len(loaded) == 1
     assert loaded[0].name == "Enterprise License"
     assert loaded[0].diff == {"x": 1}
+
+
+def test_metadata_filter_excludes_other_types():
+    results = compare_metadata(
+        str(FIXTURES_DIR / "DEVRCA"),
+        str(FIXTURES_DIR / "UATR"),
+        metadata_types=["Flow"],
+    )
+    types_found = {r.type for r in results}
+    assert types_found <= {"Flow"}
+    assert "ApexClass" not in types_found
