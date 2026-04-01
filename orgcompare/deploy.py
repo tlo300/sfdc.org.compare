@@ -1,4 +1,5 @@
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List
@@ -6,6 +7,8 @@ from xml.dom.minidom import parseString
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from orgcompare.models import DiffResult
+
+_SF_CMD = "sf.cmd" if sys.platform == "win32" else "sf"
 
 DEPLOY_DIR = Path("output/deploy")
 
@@ -64,9 +67,10 @@ def deploy_metadata(
         return {"type": "metadata", "dry_run": True, "package": str(package_path), "log": str(log_path)}
 
     result = subprocess.run(
-        ["sf", "project", "deploy", "start", "--manifest", str(package_path), "--target-org", target_org],
+        [_SF_CMD, "project", "deploy", "start", "--manifest", str(package_path), "--target-org", target_org],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     log_path.write_text(result.stdout + result.stderr)
     return {
@@ -124,14 +128,15 @@ def deploy_data(
 
         result = subprocess.run(
             [
-                "sf", "data", "upsert", "bulk",
+                _SF_CMD, "data", "upsert", "bulk",
                 "--sobject", obj_name,
                 "--file", str(csv_path),
                 "--external-id", external_id,
                 "--target-org", target_org,
             ],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         log_path.write_text(result.stdout + result.stderr)
         results.append({

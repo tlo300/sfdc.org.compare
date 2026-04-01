@@ -1,6 +1,11 @@
 import json
 import subprocess
+import sys
 from pathlib import Path
+
+# On Windows the sf CLI is a .cmd file; use sf.cmd so subprocess can find it
+# without needing shell=True (which breaks argument passing on Windows).
+_SF_CMD = "sf.cmd" if sys.platform == "win32" else "sf"
 
 
 def retrieve_metadata(org_alias: str, metadata_types: list, output_dir: str) -> None:
@@ -12,17 +17,17 @@ def retrieve_metadata(org_alias: str, metadata_types: list, output_dir: str) -> 
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    types_arg = ",".join(metadata_types)
+    metadata_flags = []
+    for t in metadata_types:
+        metadata_flags += ["--metadata", t]
     subprocess.run(
-        [
-            "sf", "project", "retrieve", "start",
-            "--metadata", types_arg,
-            "--target-org", org_alias,
-            "--output-dir", str(output_path),
-        ],
+        [_SF_CMD, "project", "retrieve", "start"]
+        + metadata_flags
+        + ["--target-org", org_alias, "--output-dir", str(output_path)],
         check=True,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
 
@@ -36,14 +41,15 @@ def retrieve_data(org_alias: str, data_objects: list, output_dir: str) -> None:
     for obj in data_objects:
         result = subprocess.run(
             [
-                "sf", "data", "query",
+                _SF_CMD, "data", "query",
                 "--query", obj["query"],
                 "--target-org", org_alias,
                 "--result-format", "json",
             ],
             check=True,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         data = json.loads(result.stdout)
         records = data.get("result", {}).get("records", [])

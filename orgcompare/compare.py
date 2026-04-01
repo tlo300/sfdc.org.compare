@@ -96,7 +96,7 @@ def compare_metadata(source_dir: str, target_dir: str) -> List[DiffResult]:
             source_val = _xml_to_dict(source_files[rel_path])
             target_val = _xml_to_dict(target_files[rel_path])
             ddiff = DeepDiff(target_val, source_val, ignore_order=True)
-            diff_dict = ddiff.to_dict() if ddiff else {}
+            diff_dict = json.loads(ddiff.to_json()) if ddiff else {}
             status = "modified" if diff_dict else "identical"
             results.append(DiffResult(
                 category="metadata", type=type_name, name=name,
@@ -148,7 +148,7 @@ def compare_data(source_dir: str, target_dir: str, data_objects: list) -> List[D
             src = {k: v for k, v in source_indexed[key].items() if k != "Id"}
             tgt = {k: v for k, v in target_indexed[key].items() if k != "Id"}
             ddiff = DeepDiff(tgt, src, ignore_order=True)
-            diff_dict = ddiff.to_dict() if ddiff else {}
+            diff_dict = json.loads(ddiff.to_json()) if ddiff else {}
             status = "modified" if diff_dict else "identical"
             results.append(DiffResult(
                 category="data", type=obj_name, name=key,
