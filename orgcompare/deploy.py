@@ -87,6 +87,61 @@ def deploy_data(
 ) -> List[dict]:
     """Export modified/added records to CSV and upsert into target_org.
 
-    Placeholder for Task 10 — raises NotImplementedError until then.
+    Skips 'removed' records (removed means the record is only in target — not in source,
+    so there's nothing to upsert from source).
     """
-    raise NotImplementedError("deploy_data not yet implemented — see Task 10")
+    import csv as csv_module
+    DEPLOY_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    config_by_name = {obj["name"]: obj for obj in data_objects_config}
+
+    by_type: dict = {}
+    for r in diff_results:
+        if r.status in ("added", "modified"):
+            by_type.setdefault(r.type, []).append(r)
+
+    results = []
+    for obj_name, diffs in by_type.items():
+        obj_config = config_by_name.get(obj_name, {})
+        external_id = obj_config.get("external_id", "Name")
+        records = [r.source_value for r in diffs if r.source_value]
+        if not records:
+            continue
+
+        csv_path = DEPLOY_DIR / f"{obj_name}_upsert_{timestamp}.csv"
+        fieldnames = list(records[0].keys())
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv_module.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(records)
+
+        log_path = DEPLOY_DIR / f"deploy_{obj_name}_{timestamp}.log"
+
+        if dry_run:
+            log_path.write_text(f"[DRY RUN] Would upsert {len(records)} records to {obj_name}")
+            results.append({"type": "data", "object": obj_name, "dry_run": True, "csv": str(csv_path)})
+            continue
+
+        result = subprocess.run(
+            [
+                "sf", "data", "upsert", "bulk",
+                "--sobject", obj_name,
+                "--file", str(csv_path),
+                "--external-id", external_id,
+                "--target-org", target_org,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        log_path.write_text(result.stdout + result.stderr)
+        results.append({
+            "type": "data",
+            "object": obj_name,
+            "dry_run": False,
+            "csv": str(csv_path),
+            "log": str(log_path),
+            "success": result.returncode == 0,
+            "output": result.stdout,
+        })
+
+    return results
