@@ -67,6 +67,8 @@ python main.py retrieve compare report                      # chaining — flags
 python main.py retrieve compare report --profile quick
 ```
 
+`main.py` currently uses a simple `sys.argv` positional loop with no flag parsing. Adding `--profile`, `--metadata`, and `--objects` requires switching to `argparse`. Commands remain positional (`retrieve`, `compare`, etc.); the flags are added as optional arguments parsed before the command loop.
+
 `main.py` resolves the effective `metadata_types` and `data_objects` lists once at startup, then passes them through to:
 - `retrieve_metadata(org_alias, metadata_types, output_dir)` — no change to signature
 - `retrieve_data(org_alias, data_objects, output_dir)` — no change to signature
@@ -115,7 +117,9 @@ Added above the existing diff list in `templates/ui.html`:
 | `POST` | `/profiles` | Body: `{name, metadata_types, data_objects}` — create or overwrite profile (silently replaces if name already exists) |
 | `DELETE` | `/profiles/<name>` | Delete a named profile |
 
-The `POST /run` endpoint (the endpoint backing the "Run Compare" button, to be defined in `server.py`) gains two optional body fields: `metadata_types: list` and `data_objects: list`. If absent, falls back to full config (existing behavior).
+The existing `POST /api/run-compare` endpoint gains two optional body fields: `metadata_types: list` and `data_objects: list`. If absent, falls back to full config (existing behavior).
+
+The `GET /` route currently passes `source_org`, `target_org`, `results`, and `summary` to the template. It must also pass `metadata_types` (list of strings) and `data_objects` (list of `{name}` dicts) from the master config so the pre-run selection panel can render the checkboxes.
 
 ---
 
