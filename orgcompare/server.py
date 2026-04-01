@@ -6,6 +6,7 @@ from flask import Flask, jsonify, render_template, request
 
 from orgcompare.compare import compare_data, compare_metadata, load_results, save_results
 from orgcompare.deploy import deploy_data, deploy_metadata
+from orgcompare.profiles import delete_profile, load_profiles, save_profile, validate_profile
 from orgcompare.retrieve import retrieve_data, retrieve_metadata
 
 _TEMPLATES_DIR = str(Path(__file__).parent.parent / "templates")
@@ -102,17 +103,13 @@ def deploy():
 
 @app.route("/profiles", methods=["GET"])
 def get_profiles():
-    from orgcompare.profiles import load_profiles
-
     return jsonify({"profiles": load_profiles(PROFILES_FILE)})
 
 
 @app.route("/profiles", methods=["POST"])
 def create_profile():
-    from orgcompare.profiles import save_profile, validate_profile
-
     config = _load_config()
-    body = request.get_json()
+    body = request.get_json(silent=True) or {}
     name = (body.get("name") or "").strip()
     if not name:
         return jsonify({"error": "name is required"}), 400
@@ -130,8 +127,6 @@ def create_profile():
 
 @app.route("/profiles/<name>", methods=["DELETE"])
 def delete_profile_endpoint(name: str):
-    from orgcompare.profiles import delete_profile
-
     delete_profile(PROFILES_FILE, name)
     return jsonify({"status": "ok"})
 
