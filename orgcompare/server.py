@@ -6,6 +6,7 @@ from flask import Flask, jsonify, render_template, request
 
 from orgcompare.compare import compare_data, compare_metadata, load_results, save_results
 from orgcompare.deploy import deploy_data, deploy_metadata
+from orgcompare.discover import load_discovery_cache, run_discovery
 from orgcompare.profiles import delete_profile, load_profiles, save_profile, validate_profile
 from orgcompare.retrieve import retrieve_data, retrieve_metadata
 
@@ -13,6 +14,7 @@ _TEMPLATES_DIR = str(Path(__file__).parent.parent / "templates")
 app = Flask(__name__, template_folder=_TEMPLATES_DIR)
 DIFF_FILE = "output/reports/diff.json"
 PROFILES_FILE = "profiles.yaml"
+DISCOVERY_FILE = "discovered.json"
 
 
 def _load_config() -> dict:
@@ -131,6 +133,24 @@ def create_profile():
 def delete_profile_endpoint(name: str):
     delete_profile(PROFILES_FILE, name)
     return jsonify({"status": "ok"})
+
+
+@app.route("/api/discover", methods=["GET"])
+def get_discover():
+    cached = load_discovery_cache(DISCOVERY_FILE)
+    if not cached:
+        return jsonify({"cached": False})
+    return jsonify(cached)
+
+
+@app.route("/api/discover", methods=["POST"])
+def post_discover():
+    config = _load_config()
+    try:
+        result = run_discovery(config["source_org"], DISCOVERY_FILE)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 def run():

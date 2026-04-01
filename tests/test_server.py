@@ -88,3 +88,40 @@ def test_run_compare_respects_explicit_empty_metadata(client, tmp_path):
     # Should attempt the run (and fail due to no sf CLI) rather than substituting full config
     # The key assertion: status is "error", not "ok" with full config results
     assert data["status"] == "error"
+
+
+from unittest.mock import patch
+
+
+def test_get_discover_returns_cached_false_when_no_file(client):
+    res = client.get("/api/discover")
+    assert res.status_code == 200
+    assert res.get_json() == {"cached": False}
+
+
+def test_get_discover_returns_cache_when_file_exists(client, tmp_path):
+    cache = {"metadata_types": ["ApexClass", "Flow"], "data_objects": ["Account"]}
+    (tmp_path / "discovered.json").write_text(__import__("json").dumps(cache))
+    res = client.get("/api/discover")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["metadata_types"] == ["ApexClass", "Flow"]
+    assert data["data_objects"] == ["Account"]
+
+
+def test_post_discover_calls_run_discovery_and_returns_result(client):
+    discovery = {"metadata_types": ["Flow"], "data_objects": ["Contact", "Product2"]}
+    with patch("orgcompare.server.run_discovery", return_value=discovery) as mock_disc:
+        res = client.post("/api/discover")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["metadata_types"] == ["Flow"]
+    assert data["data_objects"] == ["Contact", "Product2"]
+    mock_disc.assert_called_once()
+
+
+def test_post_discover_returns_500_on_error(client):
+    with patch("orgcompare.server.run_discovery", side_effect=RuntimeError("sf CLI not found")):
+        res = client.post("/api/discover")
+    assert res.status_code == 500
+    assert res.get_json()["status"] == "error"
