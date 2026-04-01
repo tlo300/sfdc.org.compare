@@ -12,13 +12,16 @@ def test_retrieve_metadata_calls_sf_cli(tmp_path):
         retrieve_metadata("DEVRCA", ["ApexClass", "Flow"], str(tmp_path))
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
-        assert "sf" in args
+        any_sf = any(a.startswith("sf") for a in args)
+        assert any_sf  # handles both "sf" and "sf.cmd"
         assert "project" in args
         assert "retrieve" in args
         assert "start" in args
         assert "--target-org" in args
         assert "DEVRCA" in args
-        assert "ApexClass,Flow" in args
+        assert "--metadata" in args
+        assert "ApexClass" in args
+        assert "Flow" in args
         assert "--output-dir" in args
 
 

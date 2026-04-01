@@ -48,7 +48,7 @@ def test_deploy_metadata_calls_sf_cli(tmp_path):
         result = deploy_metadata(METADATA_DIFFS, "UATR", dry_run=False)
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
-        assert "sf" in args
+        assert any(a.startswith("sf") for a in args)
         assert "project" in args
         assert "deploy" in args
         assert "--target-org" in args
@@ -85,7 +85,7 @@ def test_deploy_data_calls_sf_upsert():
         result = deploy_data(DATA_DIFFS, DATA_OBJECTS_CONFIG, "UATR", dry_run=False)
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
-        assert "sf" in args
+        assert any(a.startswith("sf") for a in args)
         assert "data" in args
         assert "upsert" in args
         assert "--target-org" in args
