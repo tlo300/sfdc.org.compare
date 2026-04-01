@@ -13,6 +13,7 @@
     .btn-warning { background: #e67e22; color: white; }
     .btn-secondary { background: #95a5a6; color: white; }
     button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
     table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
     th { background: #2980b9; color: white; }
@@ -35,6 +36,15 @@
     .selection-row > label:first-child { min-width: 70px; font-weight: bold; color: #555; }
     .check-label { display: flex; align-items: center; gap: 4px; font-size: 14px; }
     select { padding: 5px 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; }
+    .discovery-section { margin-top: 10px; }
+    .discovery-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+    .discovery-header strong { min-width: 70px; color: #555; }
+    .discovery-header .count { color: #888; font-size: 13px; }
+    .discovery-filter { padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 180px; }
+    .discovery-list { max-height: 200px; overflow-y: auto; border: 1px solid #eee; padding: 8px; border-radius: 4px; display: flex; flex-wrap: wrap; gap: 6px; background: #fafafa; }
+    .discovery-list .check-label { font-size: 13px; }
+    .no-discovery-msg { color: #888; font-style: italic; margin: 10px 0 6px; }
+    .panel-actions { margin-top: 12px; display: flex; gap: 10px; }
   </style>
 </head>
 <body>
@@ -48,26 +58,76 @@
       </select>
       <button class="btn-secondary" onclick="saveCurrentProfile()">Save current as...</button>
     </div>
-    <div class="selection-row">
-      <label>Metadata:</label>
-      {% for type in all_metadata_types %}
-      <label class="check-label">
-        <input type="checkbox" class="meta-check" value="{{ type }}" checked onchange="onSelectionChange()"> {{ type }}
-      </label>
-      {% endfor %}
+
+    {% if discovered_metadata or discovered_objects %}
+    <div class="discovery-section">
+      <div class="discovery-header">
+        <strong>Metadata</strong>
+        <span class="count" id="meta-count">{{ discovered_metadata | length }} types found</span>
+        <input type="text" class="discovery-filter" id="meta-filter" placeholder="filter types..." oninput="filterList('meta')">
+        <label class="check-label"><input type="checkbox" id="meta-select-all" onchange="selectAllVisible('meta', this.checked)"> Select all</label>
+      </div>
+      <div class="discovery-list" id="meta-list">
+        {% for type in discovered_metadata %}
+        <label class="check-label">
+          <input type="checkbox" class="meta-check" value="{{ type }}"
+            {% if type in all_metadata_types %}checked{% endif %}
+            onchange="onSelectionChange()"> {{ type }}
+        </label>
+        {% endfor %}
+      </div>
     </div>
-    <div class="selection-row">
-      <label>Data:</label>
-      {% for obj in all_data_objects %}
-      <label class="check-label">
-        <input type="checkbox" class="obj-check" value="{{ obj }}" checked onchange="onSelectionChange()"> {{ obj }}
-      </label>
-      {% endfor %}
+    <div class="discovery-section">
+      <div class="discovery-header">
+        <strong>Data</strong>
+        <span class="count" id="obj-count">{{ discovered_objects | length }} objects found</span>
+        <input type="text" class="discovery-filter" id="obj-filter" placeholder="filter objects..." oninput="filterList('obj')">
+        <label class="check-label"><input type="checkbox" id="obj-select-all" onchange="selectAllVisible('obj', this.checked)"> Select all</label>
+      </div>
+      <div class="discovery-list" id="obj-list">
+        {% for obj in discovered_objects %}
+        <label class="check-label">
+          <input type="checkbox" class="obj-check" value="{{ obj }}"
+            {% if obj in all_data_objects %}checked{% endif %}
+            onchange="onSelectionChange()"> {{ obj }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <p class="no-discovery-msg">Click "Discover source org" to query available metadata types and objects.</p>
+    <div id="discovery-lists" style="display:none">
+      <div class="discovery-section">
+        <div class="discovery-header">
+          <strong>Metadata</strong>
+          <span class="count" id="meta-count"></span>
+          <input type="text" class="discovery-filter" id="meta-filter" placeholder="filter types..." oninput="filterList('meta')">
+          <label class="check-label"><input type="checkbox" id="meta-select-all" onchange="selectAllVisible('meta', this.checked)"> Select all</label>
+        </div>
+        <div class="discovery-list" id="meta-list"></div>
+      </div>
+      <div class="discovery-section">
+        <div class="discovery-header">
+          <strong>Data</strong>
+          <span class="count" id="obj-count"></span>
+          <input type="text" class="discovery-filter" id="obj-filter" placeholder="filter objects..." oninput="filterList('obj')">
+          <label class="check-label"><input type="checkbox" id="obj-select-all" onchange="selectAllVisible('obj', this.checked)"> Select all</label>
+        </div>
+        <div class="discovery-list" id="obj-list"></div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="panel-actions">
+      <button class="btn-secondary" id="discover-btn" onclick="runDiscover()">Discover source org</button>
+      <button class="btn-primary" id="run-btn" onclick="runCompare()"
+        {% if not discovered_metadata and not discovered_objects %}disabled title="Run Discover first"{% endif %}>
+        &#8635; Run Compare
+      </button>
     </div>
   </div>
 
   <div class="toolbar">
-    <button class="btn-primary" onclick="runCompare()">&#8635; Run Compare</button>
     <button class="btn-success" onclick="deploySelected()">&#8679; Deploy Selected</button>
     <button class="btn-warning" onclick="deployAll()">&#8679; Deploy All</button>
   </div>
@@ -114,6 +174,10 @@
   </table>
 
   <script>
+    // Items in config.yaml — used to pre-check after a JS-triggered discover
+    const CONFIG_METADATA = {{ all_metadata_types | tojson }};
+    const CONFIG_OBJECTS = {{ all_data_objects | tojson }};
+
     // --- Profile state ---
     let profilesData = {};
 
@@ -143,12 +207,8 @@
       if (!profile) return;
       const metaSet = new Set(profile.metadata_types || []);
       const objSet = new Set(profile.data_objects || []);
-      document.querySelectorAll('.meta-check').forEach(cb => {
-        cb.checked = metaSet.has(cb.value);
-      });
-      document.querySelectorAll('.obj-check').forEach(cb => {
-        cb.checked = objSet.has(cb.value);
-      });
+      document.querySelectorAll('.meta-check').forEach(cb => { cb.checked = metaSet.has(cb.value); });
+      document.querySelectorAll('.obj-check').forEach(cb => { cb.checked = objSet.has(cb.value); });
     }
 
     function onSelectionChange() {
@@ -179,6 +239,74 @@
       }
     }
 
+    // --- Discovery ---
+    function filterList(type) {
+      const filter = document.getElementById(`${type}-filter`).value.toLowerCase();
+      document.querySelectorAll(`.${type}-check`).forEach(cb => {
+        const label = cb.closest('label');
+        label.style.display = cb.value.toLowerCase().includes(filter) ? '' : 'none';
+      });
+    }
+
+    function selectAllVisible(type, checked) {
+      document.querySelectorAll(`.${type}-check`).forEach(cb => {
+        const label = cb.closest('label');
+        if (label.style.display !== 'none') {
+          cb.checked = checked;
+        }
+      });
+      onSelectionChange();
+    }
+
+    function renderDiscoveryResults(data) {
+      const configMeta = new Set(CONFIG_METADATA);
+      const configObj = new Set(CONFIG_OBJECTS);
+
+      const metaList = document.getElementById('meta-list');
+      metaList.innerHTML = (data.metadata_types || []).map(t =>
+        `<label class="check-label"><input type="checkbox" class="meta-check" value="${t}"${configMeta.has(t) ? ' checked' : ''} onchange="onSelectionChange()"> ${t}</label>`
+      ).join('');
+      const metaCount = document.getElementById('meta-count');
+      if (metaCount) metaCount.textContent = `${(data.metadata_types || []).length} types found`;
+
+      const objList = document.getElementById('obj-list');
+      objList.innerHTML = (data.data_objects || []).map(o =>
+        `<label class="check-label"><input type="checkbox" class="obj-check" value="${o}"${configObj.has(o) ? ' checked' : ''} onchange="onSelectionChange()"> ${o}</label>`
+      ).join('');
+      const objCount = document.getElementById('obj-count');
+      if (objCount) objCount.textContent = `${(data.data_objects || []).length} objects found`;
+
+      // Show lists if they were hidden (no-cache initial state)
+      const noMsg = document.querySelector('.no-discovery-msg');
+      if (noMsg) noMsg.style.display = 'none';
+      const discoveryLists = document.getElementById('discovery-lists');
+      if (discoveryLists) discoveryLists.style.display = '';
+
+      // Enable Run Compare
+      const runBtn = document.getElementById('run-btn');
+      if (runBtn) { runBtn.disabled = false; runBtn.removeAttribute('title'); }
+    }
+
+    async function runDiscover() {
+      const btn = document.getElementById('discover-btn');
+      btn.disabled = true;
+      showStatus('Discovering — querying source org for metadata types and objects. This may take a minute...');
+      try {
+        const res = await fetch('/api/discover', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && !data.status) {
+          renderDiscoveryResults(data);
+          showStatus(`Discovery complete: ${(data.metadata_types || []).length} metadata types, ${(data.data_objects || []).length} objects.`);
+        } else {
+          showStatus(`Error: ${data.message || 'Unknown error'}`, false);
+        }
+      } catch (e) {
+        showStatus(`Error: ${e.message}`, false);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     // --- Compare ---
     function getSelection() {
       return {
@@ -188,7 +316,7 @@
     }
 
     async function runCompare() {
-      const btn = document.querySelector('button.btn-primary');
+      const btn = document.getElementById('run-btn');
       btn.disabled = true;
       const selection = getSelection();
       if (!selection.metadata_types.length && !selection.data_objects.length) {
