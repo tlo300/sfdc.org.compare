@@ -48,3 +48,18 @@ def _type_has_content(org_alias: str, type_name: str) -> bool:
         return len(components) > 0
     except (json.JSONDecodeError, KeyError):
         return False
+
+
+def discover_metadata_types(org_alias: str, max_workers: int = 10) -> list[str]:
+    """Return sorted list of metadata type names that have at least one component in the org.
+
+    Checks all registered types in parallel (max_workers threads).
+    """
+    all_types = _list_all_metadata_types(org_alias)
+    found = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_type_has_content, org_alias, t): t for t in all_types}
+        for future in as_completed(futures):
+            if future.result():
+                found.append(futures[future])
+    return sorted(found)

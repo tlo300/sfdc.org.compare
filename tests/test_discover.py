@@ -83,3 +83,19 @@ def test_type_has_content_returns_false_on_invalid_json():
     with patch("orgcompare.discover.subprocess.run", return_value=_mock_run("not-json")):
         from orgcompare.discover import _type_has_content
         assert _type_has_content("DEVRCA", "ApexClass") is False
+
+
+def test_discover_metadata_types_returns_only_types_with_content():
+    with patch("orgcompare.discover._list_all_metadata_types", return_value=["ApexClass", "Flow", "Report"]), \
+         patch("orgcompare.discover._type_has_content", side_effect=lambda org, t: t in {"ApexClass", "Report"}):
+        from orgcompare.discover import discover_metadata_types
+        result = discover_metadata_types("DEVRCA")
+    assert result == ["ApexClass", "Report"]  # sorted, Flow excluded
+
+
+def test_discover_metadata_types_returns_sorted():
+    with patch("orgcompare.discover._list_all_metadata_types", return_value=["Flow", "ApexClass"]), \
+         patch("orgcompare.discover._type_has_content", return_value=True):
+        from orgcompare.discover import discover_metadata_types
+        result = discover_metadata_types("DEVRCA")
+    assert result == ["ApexClass", "Flow"]
