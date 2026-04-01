@@ -99,3 +99,31 @@ def test_discover_metadata_types_returns_sorted():
         from orgcompare.discover import discover_metadata_types
         result = discover_metadata_types("DEVRCA")
     assert result == ["ApexClass", "Flow"]
+
+
+def test_discover_data_objects_returns_sorted_names():
+    payload = json.dumps({
+        "status": 0,
+        "result": {
+            "records": [
+                {"QualifiedApiName": "Contact"},
+                {"QualifiedApiName": "Account"},
+                {"QualifiedApiName": "MyObj__c"},
+            ]
+        }
+    })
+    with patch("orgcompare.discover.subprocess.run", return_value=_mock_run(payload)):
+        from orgcompare.discover import discover_data_objects
+        result = discover_data_objects("DEVRCA")
+    assert result == ["Account", "Contact", "MyObj__c"]
+
+
+def test_discover_data_objects_uses_entity_definition_query():
+    payload = json.dumps({"status": 0, "result": {"records": []}})
+    with patch("orgcompare.discover.subprocess.run", return_value=_mock_run(payload)) as mock_run:
+        from orgcompare.discover import discover_data_objects
+        discover_data_objects("DEVRCA")
+    call_args = mock_run.call_args[0][0]
+    assert "EntityDefinition" in " ".join(call_args)
+    assert "--target-org" in call_args
+    assert "DEVRCA" in call_args

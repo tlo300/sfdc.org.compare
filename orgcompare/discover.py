@@ -63,3 +63,23 @@ def discover_metadata_types(org_alias: str, max_workers: int = 10) -> list[str]:
             if future.result():
                 found.append(futures[future])
     return sorted(found)
+
+
+def discover_data_objects(org_alias: str) -> list[str]:
+    """Return sorted list of all queryable SObject API names from the org.
+
+    Uses EntityDefinition SOQL — consistent with the existing data query pattern.
+    """
+    result = subprocess.run(
+        [
+            _SF_CMD, "data", "query",
+            "--query",
+            "SELECT QualifiedApiName FROM EntityDefinition WHERE IsQueryable = true ORDER BY QualifiedApiName",
+            "--target-org", org_alias,
+            "--result-format", "json",
+        ],
+        capture_output=True, encoding="utf-8", errors="replace", check=True,
+    )
+    data = json.loads(result.stdout)
+    records = data.get("result", {}).get("records", [])
+    return sorted([r["QualifiedApiName"] for r in records])
