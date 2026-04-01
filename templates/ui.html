@@ -118,17 +118,21 @@
     let profilesData = {};
 
     async function loadProfilesIntoDropdown() {
-      const res = await fetch('/profiles');
-      const data = await res.json();
-      profilesData = data.profiles || {};
-      const sel = document.getElementById('profile-select');
-      // Remove all options except "Custom"
-      while (sel.options.length > 1) sel.remove(1);
-      for (const name of Object.keys(profilesData).sort()) {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        sel.appendChild(opt);
+      try {
+        const res = await fetch('/profiles');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        profilesData = data.profiles || {};
+        const sel = document.getElementById('profile-select');
+        while (sel.options.length > 1) sel.remove(1);
+        for (const name of Object.keys(profilesData).sort()) {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          sel.appendChild(opt);
+        }
+      } catch (e) {
+        showStatus(`Could not load profiles: ${e.message}`, false);
       }
     }
 
@@ -156,6 +160,10 @@
       if (!name || !name.trim()) return;
       const metadata_types = Array.from(document.querySelectorAll('.meta-check:checked')).map(c => c.value);
       const data_objects = Array.from(document.querySelectorAll('.obj-check:checked')).map(c => c.value);
+      if (!metadata_types.length && !data_objects.length) {
+        showStatus('Select at least one metadata type or data object before saving.', false);
+        return;
+      }
       const res = await fetch('/profiles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,19 +188,27 @@
     }
 
     async function runCompare() {
+      const btn = document.querySelector('button.btn-primary');
+      btn.disabled = true;
       const selection = getSelection();
       showStatus('Running compare — this may take a minute...');
-      const res = await fetch('/api/run-compare', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(selection),
-      });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        showStatus(`Compare complete: ${data.total} items. Refreshing...`);
-        setTimeout(() => location.reload(), 1500);
-      } else {
-        showStatus(`Error: ${data.message}`, false);
+      try {
+        const res = await fetch('/api/run-compare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(selection),
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showStatus(`Compare complete: ${data.total} items. Refreshing...`);
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          showStatus(`Error: ${data.message}`, false);
+          btn.disabled = false;
+        }
+      } catch (e) {
+        showStatus(`Error: ${e.message}`, false);
+        btn.disabled = false;
       }
     }
 
