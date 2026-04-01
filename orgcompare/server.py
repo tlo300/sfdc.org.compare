@@ -11,6 +11,7 @@ from orgcompare.retrieve import retrieve_data, retrieve_metadata
 _TEMPLATES_DIR = str(Path(__file__).parent.parent / "templates")
 app = Flask(__name__, template_folder=_TEMPLATES_DIR)
 DIFF_FILE = "output/reports/diff.json"
+PROFILES_FILE = "profiles.yaml"
 
 
 def _load_config() -> dict:
@@ -36,6 +37,8 @@ def index():
         target_org=config["target_org"],
         results=[r.to_dict() for r in displayed],
         summary=_build_summary(results),
+        all_metadata_types=config["metadata_types"],
+        all_data_objects=[obj["name"] for obj in config["data_objects"]],
     )
 
 
@@ -44,17 +47,24 @@ def run_compare():
     config = _load_config()
     source = config["source_org"]
     target = config["target_org"]
+    body = request.get_json(silent=True) or {}
+    metadata_types = body.get("metadata_types") or config["metadata_types"]
+    obj_names = set(body.get("data_objects") or [o["name"] for o in config["data_objects"]])
+    data_objects = [o for o in config["data_objects"] if o["name"] in obj_names]
     try:
-        retrieve_metadata(source, config["metadata_types"], f"output/retrieved/{source}")
-        retrieve_metadata(target, config["metadata_types"], f"output/retrieved/{target}")
-        retrieve_data(source, config["data_objects"], f"output/retrieved/{source}")
-        retrieve_data(target, config["data_objects"], f"output/retrieved/{target}")
+        retrieve_metadata(source, metadata_types, f"output/retrieved/{source}")
+        retrieve_metadata(target, metadata_types, f"output/retrieved/{target}")
+        retrieve_data(source, data_objects, f"output/retrieved/{source}")
+        retrieve_data(target, data_objects, f"output/retrieved/{target}")
         meta_diffs = compare_metadata(
-            f"output/retrieved/{source}", f"output/retrieved/{target}"
+            f"output/retrieved/{source}",
+            f"output/retrieved/{target}",
+            metadata_types=metadata_types,
         )
         data_diffs = compare_data(
-            f"output/retrieved/{source}", f"output/retrieved/{target}",
-            config["data_objects"],
+            f"output/retrieved/{source}",
+            f"output/retrieved/{target}",
+            data_objects,
         )
         all_diffs = meta_diffs + data_diffs
         save_results(all_diffs, DIFF_FILE)
@@ -88,6 +98,42 @@ def deploy():
         deploy_log.extend(deploy_data(data_items, config["data_objects"], target, dry_run=dry_run))
 
     return jsonify({"status": "ok", "log": deploy_log})
+
+
+@app.route("/profiles", methods=["GET"])
+def get_profiles():
+    from orgcompare.profiles import load_profiles
+
+    return jsonify({"profiles": load_profiles(PROFILES_FILE)})
+
+
+@app.route("/profiles", methods=["POST"])
+def create_profile():
+    from orgcompare.profiles import save_profile, validate_profile
+
+    config = _load_config()
+    body = request.get_json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+    profile = {
+        "metadata_types": body.get("metadata_types", []),
+        "data_objects": body.get("data_objects", []),
+    }
+    try:
+        validate_profile(profile, config)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    save_profile(PROFILES_FILE, name, profile["metadata_types"], profile["data_objects"])
+    return jsonify({"status": "ok"})
+
+
+@app.route("/profiles/<name>", methods=["DELETE"])
+def delete_profile_endpoint(name: str):
+    from orgcompare.profiles import delete_profile
+
+    delete_profile(PROFILES_FILE, name)
+    return jsonify({"status": "ok"})
 
 
 def run():
