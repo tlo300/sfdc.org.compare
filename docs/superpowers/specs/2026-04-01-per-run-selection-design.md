@@ -134,8 +134,13 @@ The `POST /run` endpoint (the endpoint backing the "Run Compare" button, to be d
 
 ---
 
+## Field Selection Within Objects
+
+Selecting a data object includes **all fields** as defined by that object's `query` in `config.yaml`. There is no per-field sub-selection — the query is used as-is. To change which fields are retrieved for an object, edit its query in `config.yaml`.
+
+---
+
 ## Out of Scope
 
 - Profile sharing across machines (profiles.yaml is local)
-- Per-field selection within an object
 - Profile versioning or history
