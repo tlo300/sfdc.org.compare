@@ -10,9 +10,9 @@ def load_profiles(profiles_path: str) -> dict:
     """
     path = Path(profiles_path)
     if not path.exists():
-        path.write_text("profiles: {}\n")
+        path.write_text("profiles: {}\n", encoding="utf-8")
         return {}
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     return data.get("profiles", {})
 
@@ -29,7 +29,9 @@ def save_profile(
 def delete_profile(profiles_path: str, name: str) -> None:
     """Delete a named profile. No-op if the profile does not exist."""
     profiles = load_profiles(profiles_path)
-    profiles.pop(name, None)
+    if name not in profiles:
+        return
+    profiles.pop(name)
     _write(profiles_path, profiles)
 
 
@@ -48,5 +50,5 @@ def validate_profile(profile: dict, config: dict) -> None:
 
 
 def _write(profiles_path: str, profiles: dict) -> None:
-    with open(profiles_path, "w") as f:
+    with open(profiles_path, "w", encoding="utf-8") as f:
         yaml.dump({"profiles": profiles}, f, default_flow_style=False, allow_unicode=True)

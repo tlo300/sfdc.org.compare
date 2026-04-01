@@ -1,5 +1,4 @@
 import pytest
-import yaml
 from orgcompare.profiles import load_profiles, save_profile, delete_profile, validate_profile
 
 CONFIG = {
