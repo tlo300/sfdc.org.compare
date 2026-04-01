@@ -125,3 +125,30 @@ def test_post_discover_returns_500_on_error(client):
         res = client.post("/api/discover")
     assert res.status_code == 500
     assert res.get_json()["status"] == "error"
+
+
+def test_index_passes_empty_discovered_when_no_cache(client):
+    res = client.get("/")
+    assert res.status_code == 200
+    # Template renders without error — discovered lists are empty
+    assert b"OrgCompare" in res.data
+
+
+def test_run_compare_generates_default_query_for_unknown_object(client):
+    with patch("orgcompare.server.retrieve_metadata"), \
+         patch("orgcompare.server.retrieve_data") as mock_rd, \
+         patch("orgcompare.server.compare_metadata", return_value=[]), \
+         patch("orgcompare.server.compare_data", return_value=[]), \
+         patch("orgcompare.server.save_results"):
+        res = client.post(
+            "/api/run-compare",
+            data=__import__("json").dumps({"metadata_types": [], "data_objects": ["UnknownObj__c"]}),
+            content_type="application/json",
+        )
+    assert res.status_code == 200
+    # Both source + target retrieve_data calls — check the object list in each
+    for call in mock_rd.call_args_list:
+        objects = call[0][1]
+        unknown = next(o for o in objects if o["name"] == "UnknownObj__c")
+        assert "FIELDS(ALL)" in unknown["query"]
+        assert "LIMIT 200" in unknown["query"]

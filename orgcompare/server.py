@@ -34,6 +34,7 @@ def index():
     config = _load_config()
     results = load_results(DIFF_FILE) if Path(DIFF_FILE).exists() else []
     displayed = [r for r in results if r.status != "identical"]
+    discovered = load_discovery_cache(DISCOVERY_FILE)
     return render_template(
         "ui.html",
         source_org=config["source_org"],
@@ -42,6 +43,8 @@ def index():
         summary=_build_summary(results),
         all_metadata_types=config["metadata_types"],
         all_data_objects=[obj["name"] for obj in config["data_objects"]],
+        discovered_metadata=discovered.get("metadata_types", []),
+        discovered_objects=discovered.get("data_objects", []),
     )
 
 
@@ -54,8 +57,15 @@ def run_compare():
     client_metadata = body.get("metadata_types")
     metadata_types = client_metadata if client_metadata is not None else config["metadata_types"]
     client_objects = body.get("data_objects")
-    obj_names = set(client_objects) if client_objects is not None else {o["name"] for o in config["data_objects"]}
-    data_objects = [o for o in config["data_objects"] if o["name"] in obj_names]
+    if client_objects is not None:
+        known = {o["name"]: o for o in config["data_objects"]}
+        data_objects = [
+            known[name] if name in known
+            else {"name": name, "query": f"SELECT FIELDS(ALL) FROM {name} LIMIT 200", "external_id": "Id"}
+            for name in client_objects
+        ]
+    else:
+        data_objects = config["data_objects"]
     try:
         retrieve_metadata(source, metadata_types, f"output/retrieved/{source}")
         retrieve_metadata(target, metadata_types, f"output/retrieved/{target}")
