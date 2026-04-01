@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OrgCompare: {{ source_org }} → {{ target_org }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; color: #333; }
+    h1, h2 { color: #2c3e50; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 24px; background: white; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    th { background: #2980b9; color: white; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .added { color: #27ae60; font-weight: bold; }
+    .modified { color: #e67e22; font-weight: bold; }
+    .removed { color: #e74c3c; font-weight: bold; }
+    .identical { color: #95a5a6; }
+    .diff-item { background: white; border: 1px solid #ddd; padding: 12px; margin: 8px 0; border-radius: 4px; }
+    details summary { cursor: pointer; font-weight: bold; padding: 4px 0; }
+    pre { background: #f8f8f8; padding: 10px; overflow-x: auto; font-size: 12px; border-radius: 2px; }
+    .section-header { background: #ecf0f1; padding: 8px 12px; border-left: 4px solid #2980b9; margin: 16px 0 8px; }
+  </style>
+</head>
+<body>
+  <h1>OrgCompare Report</h1>
+  <p><strong>Source (truth):</strong> {{ source_org }} &nbsp;→&nbsp; <strong>Target:</strong> {{ target_org }}</p>
+
+  <h2>Summary</h2>
+  <table>
+    <tr>
+      <th>Type</th>
+      <th class="added">Added</th>
+      <th class="modified">Modified</th>
+      <th class="removed">Removed</th>
+      <th>Identical</th>
+    </tr>
+    {% for type_name, counts in summary.items() %}
+    <tr>
+      <td>{{ type_name }}</td>
+      <td class="added">{{ counts.added }}</td>
+      <td class="modified">{{ counts.modified }}</td>
+      <td class="removed">{{ counts.removed }}</td>
+      <td>{{ counts.identical }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% for type_name, diffs in grouped_diffs.items() %}
+  <div class="section-header"><h2>{{ type_name }}</h2></div>
+  {% for diff in diffs %}
+  <div class="diff-item">
+    <details>
+      <summary class="{{ diff.status }}">{{ diff.name }} — {{ diff.status }}</summary>
+      {% if diff.status == 'added' %}
+        <p>Present in <strong>{{ source_org }}</strong>, missing in {{ target_org }}</p>
+        <pre>{{ diff.source_value | tojson(indent=2) }}</pre>
+      {% elif diff.status == 'removed' %}
+        <p>Missing in <strong>{{ source_org }}</strong>, present in {{ target_org }}</p>
+        <pre>{{ diff.target_value | tojson(indent=2) }}</pre>
+      {% elif diff.diff %}
+        <pre>{{ diff.diff | tojson(indent=2) }}</pre>
+      {% endif %}
+    </details>
+  </div>
+  {% endfor %}
+  {% endfor %}
+</body>
+</html>
