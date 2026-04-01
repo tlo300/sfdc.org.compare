@@ -1,6 +1,7 @@
 import json
 import pytest
 from orgcompare.discover import load_discovery_cache, save_discovery_cache
+from unittest.mock import patch, MagicMock
 
 
 def test_load_discovery_cache_returns_empty_when_no_file(tmp_path):
@@ -22,3 +23,63 @@ def test_save_discovery_cache_overwrites_existing(tmp_path):
     result = load_discovery_cache(path)
     assert result["metadata_types"] == ["Flow"]
     assert result["data_objects"] == ["Contact"]
+
+
+def _mock_run(stdout: str, returncode: int = 0) -> MagicMock:
+    m = MagicMock()
+    m.stdout = stdout
+    m.returncode = returncode
+    return m
+
+
+def test_list_all_metadata_types_parses_xmlName():
+    payload = json.dumps({
+        "status": 0,
+        "result": {
+            "metadataObjects": [
+                {"xmlName": "ApexClass", "suffix": "cls"},
+                {"xmlName": "Flow", "suffix": "flow"},
+            ]
+        }
+    })
+    with patch("orgcompare.discover.subprocess.run", return_value=_mock_run(payload)) as mock_run:
+        from orgcompare.discover import _list_all_metadata_types
+        result = _list_all_metadata_types("DEVRCA")
+    assert result == ["ApexClass", "Flow"]
+    mock_run.assert_called_once()
+
+
+def test_type_has_content_returns_true_when_components_present():
+    payload = json.dumps({
+        "status": 0,
+        "result": [{"type": "ApexClass", "fullName": "MyClass"}]
+    })
+    with patch("orgcompare.discover.subprocess.run", return_value=_mock_run(payload)):
+        from orgcompare.discover import _type_has_content
+        assert _type_has_content("DEVRCA", "ApexClass") is True
+
+
+def test_type_has_content_returns_false_when_result_is_empty_list():
+    payload = json.dumps({"status": 0, "result": []})
+    with patch("orgcompare.discover.subprocess.run", return_value=_mock_run(payload)):
+        from orgcompare.discover import _type_has_content
+        assert _type_has_content("DEVRCA", "Flow") is False
+
+
+def test_type_has_content_returns_false_when_result_is_null():
+    payload = json.dumps({"status": 0, "result": None})
+    with patch("orgcompare.discover.subprocess.run", return_value=_mock_run(payload)):
+        from orgcompare.discover import _type_has_content
+        assert _type_has_content("DEVRCA", "Report") is False
+
+
+def test_type_has_content_returns_false_on_nonzero_returncode():
+    with patch("orgcompare.discover.subprocess.run", return_value=_mock_run("", returncode=1)):
+        from orgcompare.discover import _type_has_content
+        assert _type_has_content("DEVRCA", "EmailTemplate") is False
+
+
+def test_type_has_content_returns_false_on_invalid_json():
+    with patch("orgcompare.discover.subprocess.run", return_value=_mock_run("not-json")):
+        from orgcompare.discover import _type_has_content
+        assert _type_has_content("DEVRCA", "ApexClass") is False

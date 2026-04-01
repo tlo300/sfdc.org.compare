@@ -1,6 +1,13 @@
 """Discovery module: queries the source org to find available metadata types and data objects."""
 import json
+import subprocess
+import sys
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# On Windows the sf CLI is a .cmd file; use sf.cmd so subprocess can find it
+# without needing shell=True (which breaks argument passing on Windows).
+_SF_CMD = "sf.cmd" if sys.platform == "win32" else "sf"
 
 
 def load_discovery_cache(cache_path: str) -> dict:
@@ -14,3 +21,30 @@ def load_discovery_cache(cache_path: str) -> dict:
 def save_discovery_cache(cache_path: str, data: dict) -> None:
     """Write discovery result to cache file (overwrites if present)."""
     Path(cache_path).write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _list_all_metadata_types(org_alias: str) -> list[str]:
+    """Return all registered metadata type names from the org registry."""
+    result = subprocess.run(
+        [_SF_CMD, "org", "list", "metadata-types", "--target-org", org_alias, "--json"],
+        capture_output=True, encoding="utf-8", errors="replace", check=True,
+    )
+    data = json.loads(result.stdout)
+    return [t["xmlName"] for t in data["result"]["metadataObjects"]]
+
+
+def _type_has_content(org_alias: str, type_name: str) -> bool:
+    """Return True if the org has at least one deployed component of this metadata type."""
+    result = subprocess.run(
+        [_SF_CMD, "org", "list", "metadata", "--metadata-type", type_name,
+         "--target-org", org_alias, "--json"],
+        capture_output=True, encoding="utf-8", errors="replace",
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        data = json.loads(result.stdout)
+        components = data.get("result") or []
+        return len(components) > 0
+    except (json.JSONDecodeError, KeyError):
+        return False
