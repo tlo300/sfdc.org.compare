@@ -1,6 +1,7 @@
+import json
 from pathlib import Path
 from tests.conftest import FIXTURES_DIR
-from orgcompare.compare import compare_metadata
+from orgcompare.compare import compare_metadata, compare_data, save_results, load_results
 
 
 def test_metadata_detects_modified():
@@ -33,3 +34,60 @@ def test_metadata_type_inferred_from_path():
     )
     for r in results:
         assert r.type == "ApexClass"
+
+
+def test_data_detects_modified():
+    data_objects = [{"name": "Product2", "query": "", "external_id": "Name"}]
+    results = compare_data(
+        str(FIXTURES_DIR / "DEVRCA"),
+        str(FIXTURES_DIR / "UATR"),
+        data_objects,
+    )
+    modified = [r for r in results if r.name == "Enterprise License" and r.status == "modified"]
+    assert len(modified) == 1
+    assert modified[0].category == "data"
+    assert modified[0].type == "Product2"
+    assert modified[0].diff  # has field-level changes
+
+
+def test_data_detects_added():
+    data_objects = [{"name": "Product2", "query": "", "external_id": "Name"}]
+    results = compare_data(
+        str(FIXTURES_DIR / "DEVRCA"),
+        str(FIXTURES_DIR / "UATR"),
+        data_objects,
+    )
+    added = [r for r in results if r.name == "Basic License"]
+    assert len(added) == 1
+    assert added[0].status == "added"
+    assert added[0].target_value == {}
+
+
+def test_data_detects_removed():
+    data_objects = [{"name": "Product2", "query": "", "external_id": "Name"}]
+    results = compare_data(
+        str(FIXTURES_DIR / "DEVRCA"),
+        str(FIXTURES_DIR / "UATR"),
+        data_objects,
+    )
+    removed = [r for r in results if r.name == "Legacy License"]
+    assert len(removed) == 1
+    assert removed[0].status == "removed"
+    assert removed[0].source_value == {}
+
+
+def test_save_and_load_results(tmp_path):
+    from orgcompare.models import DiffResult
+    results = [
+        DiffResult(
+            category="data", type="Product2", name="Enterprise License",
+            status="modified", source_value={"Name": "Enterprise License"},
+            target_value={"Name": "Enterprise License"}, diff={"x": 1},
+        )
+    ]
+    out_file = str(tmp_path / "diff.json")
+    save_results(results, out_file)
+    loaded = load_results(out_file)
+    assert len(loaded) == 1
+    assert loaded[0].name == "Enterprise License"
+    assert loaded[0].diff == {"x": 1}

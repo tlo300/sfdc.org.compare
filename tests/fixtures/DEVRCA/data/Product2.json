@@ -1,0 +1,4 @@
+[
+  {"Id": "01t000000000001AAA", "Name": "Enterprise License", "ProductCode": "ENT-001", "IsActive": true},
+  {"Id": "01t000000000002AAA", "Name": "Basic License", "ProductCode": "BSC-001", "IsActive": true}
+]

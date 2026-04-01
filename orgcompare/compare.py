@@ -1,6 +1,7 @@
 """
 Metadata comparison module: compares Salesforce metadata XML files between two org directories.
 """
+import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List
@@ -103,3 +104,69 @@ def compare_metadata(source_dir: str, target_dir: str) -> List[DiffResult]:
             ))
 
     return results
+
+
+def compare_data(source_dir: str, target_dir: str, data_objects: list) -> List[DiffResult]:
+    """Compare data records between source and target. Matches by external_id field."""
+    results = []
+
+    for obj_config in data_objects:
+        obj_name = obj_config["name"]
+        external_id = obj_config.get("external_id", "Name")
+
+        source_file = Path(source_dir) / "data" / f"{obj_name}.json"
+        target_file = Path(target_dir) / "data" / f"{obj_name}.json"
+
+        source_records = json.loads(source_file.read_text()) if source_file.exists() else []
+        target_records = json.loads(target_file.read_text()) if target_file.exists() else []
+
+        def to_indexed(records: list) -> dict:
+            return {
+                str(r[external_id]): {k: v for k, v in r.items() if k != "attributes"}
+                for r in records
+                if external_id in r
+            }
+
+        source_indexed = to_indexed(source_records)
+        target_indexed = to_indexed(target_records)
+        source_keys = set(source_indexed)
+        target_keys = set(target_indexed)
+
+        for key in sorted(source_keys - target_keys):
+            results.append(DiffResult(
+                category="data", type=obj_name, name=key,
+                status="added", source_value=source_indexed[key], target_value={}, diff={},
+            ))
+
+        for key in sorted(target_keys - source_keys):
+            results.append(DiffResult(
+                category="data", type=obj_name, name=key,
+                status="removed", source_value={}, target_value=target_indexed[key], diff={},
+            ))
+
+        for key in sorted(source_keys & target_keys):
+            src = {k: v for k, v in source_indexed[key].items() if k != "Id"}
+            tgt = {k: v for k, v in target_indexed[key].items() if k != "Id"}
+            ddiff = DeepDiff(tgt, src, ignore_order=True)
+            diff_dict = ddiff.to_dict() if ddiff else {}
+            status = "modified" if diff_dict else "identical"
+            results.append(DiffResult(
+                category="data", type=obj_name, name=key,
+                status=status, source_value=source_indexed[key],
+                target_value=target_indexed[key], diff=diff_dict,
+            ))
+
+    return results
+
+
+def save_results(results: List[DiffResult], output_file: str) -> None:
+    """Serialize DiffResult list to JSON file."""
+    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_file, "w") as f:
+        json.dump([r.to_dict() for r in results], f, indent=2)
+
+
+def load_results(input_file: str) -> List[DiffResult]:
+    """Deserialize DiffResult list from JSON file."""
+    with open(input_file) as f:
+        return [DiffResult.from_dict(d) for d in json.load(f)]
