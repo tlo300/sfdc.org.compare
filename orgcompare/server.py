@@ -49,8 +49,10 @@ def run_compare():
     source = config["source_org"]
     target = config["target_org"]
     body = request.get_json(silent=True) or {}
-    metadata_types = body.get("metadata_types") or config["metadata_types"]
-    obj_names = set(body.get("data_objects") or [o["name"] for o in config["data_objects"]])
+    client_metadata = body.get("metadata_types")
+    metadata_types = client_metadata if client_metadata is not None else config["metadata_types"]
+    client_objects = body.get("data_objects")
+    obj_names = set(client_objects) if client_objects is not None else {o["name"] for o in config["data_objects"]}
     data_objects = [o for o in config["data_objects"] if o["name"] in obj_names]
     try:
         retrieve_metadata(source, metadata_types, f"output/retrieved/{source}")

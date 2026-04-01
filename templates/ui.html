@@ -191,6 +191,11 @@
       const btn = document.querySelector('button.btn-primary');
       btn.disabled = true;
       const selection = getSelection();
+      if (!selection.metadata_types.length && !selection.data_objects.length) {
+        showStatus('Select at least one metadata type or data object before running.', false);
+        btn.disabled = false;
+        return;
+      }
       showStatus('Running compare — this may take a minute...');
       try {
         const res = await fetch('/api/run-compare', {

@@ -25,12 +25,12 @@ def resolve_selection(args: argparse.Namespace, config: dict) -> tuple:
             if args.objects
             else {o["name"] for o in config["data_objects"]}
         )
-        data_objects = [o for o in config["data_objects"] if o["name"] in obj_names]
         from orgcompare.profiles import validate_profile
         validate_profile(
-            {"metadata_types": metadata_types, "data_objects": [o["name"] for o in data_objects]},
+            {"metadata_types": metadata_types, "data_objects": list(obj_names)},
             config,
         )
+        data_objects = [o for o in config["data_objects"] if o["name"] in obj_names]
         return metadata_types, data_objects
 
     if args.profile:
