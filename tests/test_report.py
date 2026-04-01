@@ -50,3 +50,29 @@ def test_generate_html_includes_identical_when_flag_set(tmp_path):
     generate_html(SAMPLE_RESULTS, out_file, "DEVRCA", "UATR", show_identical=True)
     content = Path(out_file).read_text()
     assert "UnchangedClass" in content
+
+
+def test_generate_csv_creates_file_per_type(tmp_path):
+    generate_csv(SAMPLE_RESULTS, str(tmp_path))
+    apex_csv = tmp_path / "ApexClass_diff.csv"
+    product_csv = tmp_path / "Product2_diff.csv"
+    assert apex_csv.exists()
+    assert product_csv.exists()
+
+
+def test_generate_csv_has_correct_columns(tmp_path):
+    generate_csv(SAMPLE_RESULTS, str(tmp_path))
+    import csv as csv_module
+    with open(tmp_path / "ApexClass_diff.csv") as f:
+        reader = csv_module.DictReader(f)
+        rows = list(reader)
+    assert rows
+    assert set(rows[0].keys()) == {"name", "status", "field", "source_value", "target_value"}
+
+
+def test_generate_csv_excludes_identical(tmp_path):
+    generate_csv(SAMPLE_RESULTS, str(tmp_path))
+    import csv as csv_module
+    with open(tmp_path / "ApexClass_diff.csv") as f:
+        content = f.read()
+    assert "UnchangedClass" not in content
