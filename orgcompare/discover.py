@@ -83,3 +83,12 @@ def discover_data_objects(org_alias: str) -> list[str]:
     data = json.loads(result.stdout)
     records = data.get("result", {}).get("records", [])
     return sorted([r["QualifiedApiName"] for r in records])
+
+
+def run_discovery(org_alias: str, cache_path: str) -> dict:
+    """Run full discovery against the org, save to cache, and return the result."""
+    metadata_types = discover_metadata_types(org_alias)
+    data_objects = discover_data_objects(org_alias)
+    result = {"metadata_types": metadata_types, "data_objects": data_objects}
+    save_discovery_cache(cache_path, result)
+    return result

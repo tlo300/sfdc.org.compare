@@ -127,3 +127,22 @@ def test_discover_data_objects_uses_entity_definition_query():
     assert "EntityDefinition" in " ".join(call_args)
     assert "--target-org" in call_args
     assert "DEVRCA" in call_args
+
+
+def test_run_discovery_returns_combined_result(tmp_path):
+    cache_path = str(tmp_path / "discovered.json")
+    with patch("orgcompare.discover.discover_metadata_types", return_value=["ApexClass", "Flow"]), \
+         patch("orgcompare.discover.discover_data_objects", return_value=["Account", "Contact"]):
+        from orgcompare.discover import run_discovery
+        result = run_discovery("DEVRCA", cache_path)
+    assert result == {"metadata_types": ["ApexClass", "Flow"], "data_objects": ["Account", "Contact"]}
+
+
+def test_run_discovery_saves_to_cache(tmp_path):
+    cache_path = str(tmp_path / "discovered.json")
+    with patch("orgcompare.discover.discover_metadata_types", return_value=["Flow"]), \
+         patch("orgcompare.discover.discover_data_objects", return_value=["Product2"]):
+        from orgcompare.discover import run_discovery
+        run_discovery("DEVRCA", cache_path)
+    cached = json.loads((tmp_path / "discovered.json").read_text())
+    assert cached == {"metadata_types": ["Flow"], "data_objects": ["Product2"]}
