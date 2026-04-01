@@ -1,6 +1,6 @@
+"""OrgCompare entry point — orchestrates retrieve, compare, report, serve, and deploy commands."""
 import sys
 import yaml
-from pathlib import Path
 
 
 def load_config() -> dict:
@@ -94,9 +94,11 @@ if __name__ == "__main__":
         print("Commands can be chained: python main.py retrieve compare report")
         sys.exit(1)
 
-    config = load_config()
     for cmd in args:
         if cmd not in COMMANDS:
             print(f"Unknown command: '{cmd}'. Valid: {list(COMMANDS)}")
             sys.exit(1)
+
+    config = load_config()
+    for cmd in args:
         COMMANDS[cmd](config)
