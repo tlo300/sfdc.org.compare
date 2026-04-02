@@ -78,7 +78,11 @@
     .no-discovery-msg { color: #888; font-style: italic; margin: 6px 0; }
 
     .toolbar { margin-bottom: 16px; display: flex; gap: 10px; align-items: center; }
+    .xml-diff-container { overflow-x: auto; }
+    .d2h-wrapper { font-size: 12px; }
   </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
 </head>
 <body>
   <h1>OrgCompare: {{ source_org }} &rarr; {{ target_org }}</h1>
@@ -216,7 +220,10 @@
           <td><a href="#" onclick="toggleDiff('mdiff-{{ loop.index }}'); return false;">view diff</a></td>
         </tr>
         <tr id="mdiff-{{ loop.index }}" class="diff-row">
-          <td colspan="5"><pre>{{ r.diff | tojson(indent=2) if r.diff else ("Added in source" if r.status == "added" else "Removed from source") }}</pre></td>
+          <td colspan="5">
+            <div class="xml-diff-container"
+                 data-unified-diff='{{ r.xml_diff | tojson if r.xml_diff else "null" }}'></div>
+          </td>
         </tr>
         {% endif %}
         {% endfor %}
@@ -596,7 +603,23 @@
     }
 
     function toggleDiff(id) {
-      document.getElementById(id).classList.toggle('open');
+      const row = document.getElementById(id);
+      const container = row.querySelector('.xml-diff-container');
+      if (container && !container.dataset.rendered) {
+        const raw = container.dataset.unifiedDiff;
+        const unifiedDiff = raw && raw !== 'null' ? JSON.parse(raw) : null;
+        if (unifiedDiff) {
+          container.innerHTML = Diff2Html.html(unifiedDiff, {
+            drawFileList: false,
+            matching: 'lines',
+            outputFormat: 'side-by-side',
+          });
+        } else {
+          container.textContent = 'No diff available.';
+        }
+        container.dataset.rendered = '1';
+      }
+      row.classList.toggle('open');
     }
 
     function showStatus(msg, ok = true) {
