@@ -460,6 +460,22 @@ def test_compare_stream_returns_done_event(client, tmp_path, monkeypatch):
     assert '"done": true' in body or '"done":true' in body
 
 
+def test_compare_stream_returns_400_on_bad_json_params(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text(
+        "source_org: DEVRCA\ntarget_org: UATR\n"
+        "metadata_types: [ApexClass]\ndata_objects: []\n"
+    )
+    with patch("orgcompare.server._load_orgs", return_value={
+        "selection": {"source": "DEVRCA", "target": "UATR"}, "orgs": []
+    }):
+        res = client.get("/api/compare/stream?metadata_types=not-json&data_objects=%5B%5D")
+    assert res.status_code == 400
+    data = res.get_json()
+    assert data["status"] == "error"
+    assert "Invalid query parameters" in data["message"]
+
+
 def test_compare_stream_emits_error_on_exception(client, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config.yaml").write_text(

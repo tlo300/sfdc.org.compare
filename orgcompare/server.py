@@ -317,7 +317,7 @@ def discover_stream():
     return Response(
         stream_with_context(generate()),
         content_type="text/event-stream",
-        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+        headers={"X-Accel-Buffering": "no"},
     )
 
 
@@ -331,18 +331,20 @@ def compare_stream():
     raw_meta = request.args.get("metadata_types")
     raw_objs = request.args.get("data_objects")
 
-    metadata_types = json.loads(raw_meta) if raw_meta is not None else config["metadata_types"]
-
-    if raw_objs is not None:
-        obj_names = json.loads(raw_objs)
-        known = {o["name"]: o for o in config["data_objects"]}
-        data_objects = [
-            known[name] if name in known
-            else {"name": name, "query": f"SELECT FIELDS(ALL) FROM {name} LIMIT 200", "external_id": "Id"}
-            for name in obj_names
-        ]
-    else:
-        data_objects = config["data_objects"]
+    try:
+        metadata_types = json.loads(raw_meta) if raw_meta is not None else config["metadata_types"]
+        if raw_objs is not None:
+            obj_names = json.loads(raw_objs)
+            known = {o["name"]: o for o in config["data_objects"]}
+            data_objects = [
+                known[name] if name in known
+                else {"name": name, "query": f"SELECT FIELDS(ALL) FROM {name} LIMIT 200", "external_id": "Id"}
+                for name in obj_names
+            ]
+        else:
+            data_objects = config["data_objects"]
+    except json.JSONDecodeError as e:
+        return jsonify({"status": "error", "message": f"Invalid query parameters: {e}"}), 400
 
     q = queue.Queue()
 
@@ -393,7 +395,7 @@ def compare_stream():
     return Response(
         stream_with_context(generate()),
         content_type="text/event-stream",
-        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+        headers={"X-Accel-Buffering": "no"},
     )
 
 
