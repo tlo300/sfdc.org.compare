@@ -124,7 +124,7 @@ def compare_metadata(
                 source_lines = source_files[rel_path].read_text(encoding="utf-8").splitlines(keepends=True)
                 target_lines = target_files[rel_path].read_text(encoding="utf-8").splitlines(keepends=True)
                 xml_diff = "".join(difflib.unified_diff(
-                    target_lines, source_lines, fromfile=target_label, tofile=source_label,
+                    source_lines, target_lines, fromfile=source_label, tofile=target_label,
                 ))
             else:
                 xml_diff = None

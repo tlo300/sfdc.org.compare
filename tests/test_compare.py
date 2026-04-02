@@ -123,9 +123,9 @@ def test_metadata_modified_has_xml_diff():
     assert modified[0].xml_diff is not None
     assert modified[0].xml_diff.startswith("---")
     assert "+++" in modified[0].xml_diff
-    # fromfile=target label (UATR), tofile=source label (DEVRCA)
-    assert "UATR" in modified[0].xml_diff
+    # fromfile=source label (DEVRCA, baseline/left), tofile=target label (UATR, drifted/right)
     assert "DEVRCA" in modified[0].xml_diff
+    assert "UATR" in modified[0].xml_diff
 
 
 def test_metadata_added_has_xml_diff():
