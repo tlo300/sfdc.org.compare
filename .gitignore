@@ -18,3 +18,4 @@ profiles.yaml
 orgs.yaml
 *.xlsx
 .worktrees/
+.superpowers/
