@@ -61,13 +61,15 @@ def _clean_name(rel_path: Path) -> str:
 
 
 def compare_metadata(
-    source_dir: str, target_dir: str, metadata_types: list | None = None
+    source_dir: str, target_dir: str, metadata_types: list | None = None, emit=None
 ) -> List[DiffResult]:
     """Compare metadata XML files between source and target directories.
 
     If metadata_types is provided, only files whose inferred type is in the
     list are included. Pass None (default) to include all types.
     """
+    if emit:
+        emit("normal", "Comparing metadata...")
     source_path = Path(source_dir)
     target_path = Path(target_dir)
 
@@ -134,11 +136,19 @@ def compare_metadata(
                 xml_diff=xml_diff,
             ))
 
+    if emit:
+        added = sum(1 for r in results if r.status == "added")
+        modified = sum(1 for r in results if r.status == "modified")
+        removed = sum(1 for r in results if r.status == "removed")
+        identical = sum(1 for r in results if r.status == "identical")
+        emit("normal", f"  Metadata: {added} added, {modified} modified, {removed} removed, {identical} identical")
     return results
 
 
-def compare_data(source_dir: str, target_dir: str, data_objects: list) -> List[DiffResult]:
+def compare_data(source_dir: str, target_dir: str, data_objects: list, emit=None) -> List[DiffResult]:
     """Compare data records between source and target. Matches by external_id field."""
+    if emit:
+        emit("normal", "Comparing data...")
     results = []
 
     for obj_config in data_objects:
@@ -163,6 +173,8 @@ def compare_data(source_dir: str, target_dir: str, data_objects: list) -> List[D
         source_keys = set(source_indexed)
         target_keys = set(target_indexed)
 
+        obj_start = len(results)
+
         for key in sorted(source_keys - target_keys):
             results.append(DiffResult(
                 category="data", type=obj_name, name=key,
@@ -186,6 +198,10 @@ def compare_data(source_dir: str, target_dir: str, data_objects: list) -> List[D
                 status=status, source_value=source_indexed[key],
                 target_value=target_indexed[key], diff=diff_dict,
             ))
+
+        if emit:
+            non_identical = sum(1 for r in results[obj_start:] if r.status != "identical")
+            emit("normal", f"  {obj_name}: {non_identical} difference(s)")
 
     return results
 

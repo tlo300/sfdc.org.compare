@@ -164,3 +164,53 @@ def test_metadata_identical_has_no_xml_diff():
     identical = [r for r in results if r.status == "identical"]
     for r in identical:
         assert r.xml_diff is None
+
+
+def test_compare_metadata_calls_emit(tmp_path):
+    calls = []
+    def emit(level, msg, **kw): calls.append((level, msg))
+    src = tmp_path / "src"
+    tgt = tmp_path / "tgt"
+    src.mkdir(); tgt.mkdir()
+    (src / "classes").mkdir()
+    (src / "classes" / "MyClass.cls-meta.xml").write_text("<ApexClass><apiVersion>58.0</apiVersion></ApexClass>")
+    from orgcompare.compare import compare_metadata
+    compare_metadata(str(src), str(tgt), emit=emit)
+    assert any("Comparing metadata" in msg for _, msg in calls)
+    assert any("added" in msg or "modified" in msg or "removed" in msg for _, msg in calls)
+
+
+def test_compare_metadata_without_emit_still_works(tmp_path):
+    src = tmp_path / "src"
+    tgt = tmp_path / "tgt"
+    src.mkdir(); tgt.mkdir()
+    from orgcompare.compare import compare_metadata
+    results = compare_metadata(str(src), str(tgt))  # no emit
+    assert results == []
+
+
+def test_compare_data_calls_emit_per_object(tmp_path):
+    calls = []
+    def emit(level, msg, **kw): calls.append((level, msg))
+    src = tmp_path / "src" / "data"
+    tgt = tmp_path / "tgt" / "data"
+    src.mkdir(parents=True); tgt.mkdir(parents=True)
+    (src / "Product2.json").write_text('[{"Name": "P1", "Id": "001"}]')
+    (tgt / "Product2.json").write_text('[]')
+    from orgcompare.compare import compare_data
+    compare_data(str(tmp_path / "src"), str(tmp_path / "tgt"),
+                 [{"name": "Product2", "external_id": "Name"}], emit=emit)
+    assert any("Comparing data" in msg for _, msg in calls)
+    assert any("Product2" in msg for _, msg in calls)
+
+
+def test_compare_data_without_emit_still_works(tmp_path):
+    src = tmp_path / "src" / "data"
+    tgt = tmp_path / "tgt" / "data"
+    src.mkdir(parents=True); tgt.mkdir(parents=True)
+    (src / "Product2.json").write_text('[]')
+    (tgt / "Product2.json").write_text('[]')
+    from orgcompare.compare import compare_data
+    results = compare_data(str(tmp_path / "src"), str(tmp_path / "tgt"),
+                           [{"name": "Product2", "external_id": "Name"}])  # no emit
+    assert results == []
