@@ -52,23 +52,26 @@ def _build_summary(results: list) -> dict:
 
 def _run_login(job_id: str, alias: str, name: str, instance_url: str) -> None:
     """Run `sf org login web` in a background thread and update _LOGIN_JOBS."""
-    sf = "sf.cmd" if sys.platform == "win32" else "sf"
-    result = subprocess.run(
-        [sf, "org", "login", "web", "--alias", alias, "--instance-url", instance_url],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode == 0:
-        try:
-            add_org(ORGS_FILE, alias, name)
-            _LOGIN_JOBS[job_id] = {"status": "done"}
-        except ValueError as e:
-            _LOGIN_JOBS[job_id] = {"status": "error", "error": str(e)}
-    else:
-        _LOGIN_JOBS[job_id] = {
-            "status": "error",
-            "error": result.stderr.strip() or "Login failed",
-        }
+    try:
+        sf = "sf.cmd" if sys.platform == "win32" else "sf"
+        result = subprocess.run(
+            [sf, "org", "login", "web", "--alias", alias, "--instance-url", instance_url],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            try:
+                add_org(ORGS_FILE, alias, name)
+                _LOGIN_JOBS[job_id] = {"status": "done"}
+            except ValueError as e:
+                _LOGIN_JOBS[job_id] = {"status": "error", "error": str(e)}
+        else:
+            _LOGIN_JOBS[job_id] = {
+                "status": "error",
+                "error": result.stderr.strip() or "Login failed",
+            }
+    except Exception as e:
+        _LOGIN_JOBS[job_id] = {"status": "error", "error": str(e)}
 
 
 @app.route("/")
@@ -228,7 +231,7 @@ def start_login():
     body = request.get_json(silent=True) or {}
     alias = (body.get("alias") or "").strip()
     name = (body.get("name") or "").strip()
-    instance_url = body.get("instance_url", "https://test.salesforce.com")
+    instance_url = (body.get("instance_url") or "https://test.salesforce.com").strip()
     if not alias or not name:
         return jsonify({"error": "alias and name are required"}), 400
     if instance_url not in ("https://login.salesforce.com", "https://test.salesforce.com"):

@@ -381,3 +381,13 @@ def test_run_login_duplicate_alias_sets_error(tmp_path, monkeypatch):
     assert _LOGIN_JOBS["job-dup"]["status"] == "error"
     assert "already exists" in _LOGIN_JOBS["job-dup"]["error"]
     del _LOGIN_JOBS["job-dup"]
+
+
+def test_run_login_subprocess_exception_sets_error(tmp_path, monkeypatch):
+    from orgcompare.server import _run_login, _LOGIN_JOBS
+    monkeypatch.chdir(tmp_path)
+    with patch("orgcompare.server.subprocess.run", side_effect=FileNotFoundError("sf not found")):
+        _run_login("job-exc", "NEWORG", "New Org", "https://test.salesforce.com")
+    assert _LOGIN_JOBS["job-exc"]["status"] == "error"
+    assert "sf not found" in _LOGIN_JOBS["job-exc"]["error"]
+    del _LOGIN_JOBS["job-exc"]
