@@ -296,6 +296,9 @@
 
   <script>
 
+    // Module-level login poll handle
+    let _loginPoll = null;
+
     // --- Tabs ---
     function switchTab(name) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -401,6 +404,9 @@
     }
 
     function closeOrgsModal() {
+      if (_loginPoll) { clearInterval(_loginPoll); _loginPoll = null; }
+      _enableLoginForm();
+      document.getElementById('login-status').style.display = 'none';
       document.getElementById('orgs-modal').style.display = 'none';
       loadOrgsIntoDropdowns();
     }
@@ -454,12 +460,12 @@
         return;
       }
       // Poll for completion
-      const poll = setInterval(async () => {
+      _loginPoll = setInterval(async () => {
         let statusData;
         try {
           const r = await fetch(`/api/orgs/login/status/${jobId}`);
           if (r.status === 404) {
-            clearInterval(poll);
+            clearInterval(_loginPoll);
             _setLoginStatus('Login session expired, please try again.', 'error');
             _enableLoginForm();
             return;
@@ -469,7 +475,7 @@
           return; // network blip — keep polling
         }
         if (statusData.status === 'done') {
-          clearInterval(poll);
+          clearInterval(_loginPoll);
           statusEl.style.display = 'none';
           document.getElementById('new-org-alias').value = '';
           document.getElementById('new-org-name').value = '';
@@ -477,7 +483,7 @@
           await loadOrgsIntoDropdowns();
           _renderOrgsList();
         } else if (statusData.status === 'error') {
-          clearInterval(poll);
+          clearInterval(_loginPoll);
           _setLoginStatus(`Error: ${statusData.error}`, 'error');
           _enableLoginForm();
         }
