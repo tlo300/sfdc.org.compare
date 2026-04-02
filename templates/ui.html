@@ -407,7 +407,7 @@
           <td style="padding:6px 8px; border-bottom:1px solid #eee;">${escHtml(org.alias)}</td>
           <td style="padding:6px 8px; border-bottom:1px solid #eee;">${escHtml(org.name)}</td>
           <td style="padding:6px 8px; border-bottom:1px solid #eee; text-align:right;">
-            <button class="btn-warning" style="font-size:12px; padding:3px 8px;" onclick="removeOrg('${escHtml(org.alias)}')">Remove</button>
+            <button class="btn-warning" style="font-size:12px; padding:3px 8px;" data-alias="${escHtml(org.alias)}" onclick="removeOrg(this.dataset.alias)">Remove</button>
           </td>
         </tr>`
       ).join('');
