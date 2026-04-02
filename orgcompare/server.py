@@ -125,6 +125,9 @@ def get_profiles():
 @app.route("/profiles", methods=["POST"])
 def create_profile():
     config = _load_config()
+    discovered = load_discovery_cache(DISCOVERY_FILE)
+    if discovered.get("data_objects"):
+        config = dict(config, data_objects=list(config.get("data_objects", [])) + discovered["data_objects"])
     body = request.get_json(silent=True) or {}
     name = (body.get("name") or "").strip()
     if not name:

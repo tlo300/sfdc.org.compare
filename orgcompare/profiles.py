@@ -38,7 +38,10 @@ def delete_profile(profiles_path: str, name: str) -> None:
 def validate_profile(profile: dict, config: dict) -> None:
     """Raise ValueError if the profile references types/objects absent from config."""
     valid_metadata = set(config.get("metadata_types", []))
-    valid_objects = {obj["name"] for obj in config.get("data_objects", [])}
+    valid_objects = {
+        obj["name"] if isinstance(obj, dict) else obj
+        for obj in config.get("data_objects", [])
+    }
 
     unknown_meta = set(profile.get("metadata_types", [])) - valid_metadata
     if unknown_meta:

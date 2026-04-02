@@ -60,3 +60,16 @@ def test_validate_profile_raises_for_unknown_data_object():
     profile = {"metadata_types": ["ApexClass"], "data_objects": ["UnknownObject"]}
     with pytest.raises(ValueError, match="Unknown data objects"):
         validate_profile(profile, CONFIG)
+
+
+def test_validate_profile_accepts_discovered_string_objects():
+    """Discovered data_objects are plain strings; validate_profile must handle both formats."""
+    config_with_discovered = {
+        "metadata_types": ["ApexClass"],
+        "data_objects": [
+            {"name": "Product2", "query": "SELECT Id FROM Product2", "external_id": "Name"},
+            "Opportunity",
+        ],
+    }
+    profile = {"metadata_types": ["ApexClass"], "data_objects": ["Opportunity"]}
+    validate_profile(profile, config_with_discovered)  # should not raise
