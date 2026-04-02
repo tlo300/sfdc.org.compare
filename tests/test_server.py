@@ -1,5 +1,7 @@
 import json
 import pytest
+import yaml
+from unittest.mock import MagicMock, patch
 from orgcompare.server import app
 
 
@@ -88,9 +90,6 @@ def test_run_compare_respects_explicit_empty_metadata(client, tmp_path):
     # selection was respected — full config was NOT substituted).
     assert data["status"] == "ok"
     assert data["total"] == 0
-
-
-from unittest.mock import patch
 
 
 def test_get_discover_returns_cached_false_when_no_file(client):
@@ -240,10 +239,6 @@ def test_patch_org_selection_unknown_alias_returns_400(client):
     assert "error" in res.get_json()
 
 
-from unittest.mock import MagicMock
-from orgcompare.server import _run_login, _LOGIN_JOBS
-
-
 # ── POST /api/orgs/login ────────────────────────────────────────────────────
 
 def test_post_login_missing_alias_returns_400(client):
@@ -277,6 +272,7 @@ def test_post_login_invalid_instance_url_returns_400(client):
 
 
 def test_post_login_returns_job_id(client):
+    from orgcompare.server import _LOGIN_JOBS
     with patch("orgcompare.server.threading.Thread") as mock_thread:
         mock_thread.return_value.start = lambda: None
         res = client.post(
@@ -291,6 +287,7 @@ def test_post_login_returns_job_id(client):
     data = res.get_json()
     assert "job_id" in data
     assert len(data["job_id"]) == 36  # UUID format
+    del _LOGIN_JOBS[data["job_id"]]
 
 
 # ── GET /api/orgs/login/status/<job_id> ────────────────────────────────────
@@ -302,6 +299,7 @@ def test_login_status_unknown_job_returns_404(client):
 
 
 def test_login_status_returns_running(client):
+    from orgcompare.server import _LOGIN_JOBS
     _LOGIN_JOBS["test-running"] = {"status": "running"}
     res = client.get("/api/orgs/login/status/test-running")
     assert res.status_code == 200
@@ -310,14 +308,17 @@ def test_login_status_returns_running(client):
 
 
 def test_login_status_returns_done(client):
+    from orgcompare.server import _LOGIN_JOBS
     _LOGIN_JOBS["test-done"] = {"status": "done"}
     res = client.get("/api/orgs/login/status/test-done")
     assert res.status_code == 200
     assert res.get_json()["status"] == "done"
+    assert "error" not in res.get_json()
     del _LOGIN_JOBS["test-done"]
 
 
 def test_login_status_returns_error(client):
+    from orgcompare.server import _LOGIN_JOBS
     _LOGIN_JOBS["test-error"] = {"status": "error", "error": "Auth cancelled"}
     res = client.get("/api/orgs/login/status/test-error")
     assert res.status_code == 200
@@ -330,6 +331,7 @@ def test_login_status_returns_error(client):
 # ── _run_login ──────────────────────────────────────────────────────────────
 
 def test_run_login_success_sets_done(tmp_path, monkeypatch):
+    from orgcompare.server import _run_login, _LOGIN_JOBS
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config.yaml").write_text(
         "source_org: A\ntarget_org: B\nmetadata_types: []\ndata_objects: []\n"
@@ -339,10 +341,15 @@ def test_run_login_success_sets_done(tmp_path, monkeypatch):
     with patch("orgcompare.server.subprocess.run", return_value=mock_result):
         _run_login("job-ok", "NEWORG", "New Org", "https://test.salesforce.com")
     assert _LOGIN_JOBS["job-ok"]["status"] == "done"
+    orgs_file = tmp_path / "orgs.yaml"
+    assert orgs_file.exists()
+    orgs = yaml.safe_load(orgs_file.read_text())
+    assert any(o["alias"] == "NEWORG" for o in orgs["orgs"])
     del _LOGIN_JOBS["job-ok"]
 
 
 def test_run_login_cli_failure_sets_error(tmp_path, monkeypatch):
+    from orgcompare.server import _run_login, _LOGIN_JOBS
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config.yaml").write_text(
         "source_org: A\ntarget_org: B\nmetadata_types: []\ndata_objects: []\n"
@@ -358,6 +365,7 @@ def test_run_login_cli_failure_sets_error(tmp_path, monkeypatch):
 
 
 def test_run_login_duplicate_alias_sets_error(tmp_path, monkeypatch):
+    from orgcompare.server import _run_login, _LOGIN_JOBS
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config.yaml").write_text(
         "source_org: A\ntarget_org: B\nmetadata_types: []\ndata_objects: []\n"
