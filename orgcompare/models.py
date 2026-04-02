@@ -17,6 +17,7 @@ class DiffResult:
         source_value: Component data from source org
         target_value: Component data from target org
         diff: DeepDiff output showing specific changes
+        xml_diff: Unified diff string for metadata items; None for data rows
     """
     category: str   # "metadata" | "data"
     type: str       # e.g. "ApexClass", "Product2"
@@ -25,6 +26,7 @@ class DiffResult:
     source_value: dict
     target_value: dict
     diff: dict
+    xml_diff: str | None = None
 
     def to_dict(self) -> dict:
         """Convert DiffResult to dictionary for serialization."""
@@ -33,4 +35,4 @@ class DiffResult:
     @classmethod
     def from_dict(cls, d: dict) -> "DiffResult":
         """Reconstruct DiffResult from dictionary."""
-        return cls(**d)
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
