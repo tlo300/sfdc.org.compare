@@ -1,0 +1,23 @@
+source_org: SOURCE_ORG_ALIAS
+target_org: TARGET_ORG_ALIAS
+
+metadata_types:
+  - CustomObject
+  - CustomField
+  - ApexClass
+  - ApexTrigger
+  - Flow
+  - PermissionSet
+  - LightningComponentBundle
+  - ValidationRule
+
+data_objects:
+  - name: Product2
+    query: "SELECT Id, Name, ProductCode, IsActive FROM Product2"
+    external_id: Name
+  - name: Pricebook2
+    query: "SELECT Id, Name, IsActive FROM Pricebook2"
+    external_id: Name
+  - name: PricebookEntry
+    query: "SELECT Id, UnitPrice, IsActive, Pricebook2Id, Product2Id FROM PricebookEntry"
+    external_id: Id

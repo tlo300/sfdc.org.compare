@@ -6,7 +6,6 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; color: #333; }
     h1 { color: #2c3e50; }
-    .toolbar { margin-bottom: 16px; display: flex; gap: 10px; align-items: center; }
     button { padding: 8px 18px; cursor: pointer; border: none; border-radius: 4px; font-size: 14px; }
     .btn-primary { background: #2980b9; color: white; }
     .btn-success { background: #27ae60; color: white; }
@@ -27,45 +26,110 @@
     .diff-row { display: none; }
     .diff-row.open { display: table-row; }
     pre { font-size: 12px; background: #f8f8f8; padding: 8px; max-height: 220px; overflow-y: auto; margin: 0; }
-    .summary-bar { display: flex; gap: 20px; margin-bottom: 16px; }
-    .summary-card { background: white; padding: 10px 16px; border-radius: 4px; border: 1px solid #ddd; }
+    .summary-bar { display: flex; gap: 20px; margin-bottom: 10px; flex-wrap: wrap; }
+    .summary-card {
+      background: white; padding: 10px 16px; border-radius: 4px; border: 2px solid #ddd;
+      cursor: pointer; user-select: none; transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .summary-card:hover { border-color: #2980b9; }
+    .summary-card.active { border-color: #2980b9; box-shadow: 0 0 0 2px #d0e8f7; background: #eaf4fd; }
     .summary-card span { font-weight: bold; font-size: 18px; }
-    .selection-panel { background: white; border: 1px solid #ddd; border-radius: 4px; padding: 14px 16px; margin-bottom: 16px; }
+    .filter-bar { display: flex; gap: 6px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+    .filter-bar .label { font-size: 13px; color: #888; margin-right: 4px; }
+    .filter-btn {
+      padding: 4px 12px; font-size: 13px; border: 1px solid #ccc; border-radius: 12px;
+      background: white; color: #555; cursor: pointer;
+    }
+    .filter-btn:hover { border-color: #2980b9; color: #2980b9; }
+    .filter-btn.active { background: #2980b9; color: white; border-color: #2980b9; }
+    .group-filter-bar { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; flex-wrap: wrap; }
+    .group-btn {
+      padding: 3px 10px; font-size: 12px; border: 1px solid #ccc; border-radius: 10px;
+      background: white; color: #555; cursor: pointer;
+    }
+    .group-btn:hover { border-color: #7f8c8d; background: #f0f0f0; }
+    .group-btn.active { background: #34495e; color: white; border-color: #34495e; }
+    .top-panel { background: white; border: 1px solid #ddd; border-radius: 4px; padding: 14px 16px; margin-bottom: 16px; }
     .selection-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
     .selection-row:last-child { margin-bottom: 0; }
     .selection-row > label:first-child { min-width: 70px; font-weight: bold; color: #555; }
     .check-label { display: flex; align-items: center; gap: 4px; font-size: 14px; }
     select { padding: 5px 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; }
-    .discovery-section { margin-top: 10px; }
+    .panel-actions { margin-top: 12px; display: flex; gap: 10px; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 0; margin-bottom: 0; }
+    .tab-btn {
+      padding: 10px 24px; cursor: pointer; border: 1px solid #ddd; border-bottom: none;
+      border-radius: 4px 4px 0 0; background: #e0e0e0; color: #555; font-size: 15px;
+      margin-right: 4px;
+    }
+    .tab-btn.active { background: white; color: #2c3e50; font-weight: bold; border-color: #ddd; }
+    .tab-content { display: none; background: white; border: 1px solid #ddd; border-radius: 0 4px 4px 4px; padding: 16px; }
+    .tab-content.active { display: block; }
+
+    /* Discovery inside tabs */
+    .discovery-section { margin-bottom: 14px; }
     .discovery-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
-    .discovery-header strong { min-width: 70px; color: #555; }
     .discovery-header .count { color: #888; font-size: 13px; }
     .discovery-filter { padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 180px; }
     .discovery-list { max-height: 200px; overflow-y: auto; border: 1px solid #eee; padding: 8px; border-radius: 4px; display: flex; flex-wrap: wrap; gap: 6px; background: #fafafa; }
     .discovery-list .check-label { font-size: 13px; }
-    .no-discovery-msg { color: #888; font-style: italic; margin: 10px 0 6px; }
-    .panel-actions { margin-top: 12px; display: flex; gap: 10px; }
+    .no-discovery-msg { color: #888; font-style: italic; margin: 6px 0; }
+
+    .toolbar { margin-bottom: 16px; display: flex; gap: 10px; align-items: center; }
   </style>
 </head>
 <body>
-  <h1>OrgCompare: {{ source_org }} → {{ target_org }}</h1>
+  <h1>OrgCompare: {{ source_org }} &rarr; {{ target_org }}</h1>
 
-  <div class="selection-panel">
+  <!-- Shared top panel: profile + discover/run -->
+  <div class="top-panel">
     <div class="selection-row">
       <label>Profile:</label>
       <select id="profile-select" onchange="applyProfile()">
         <option value="">Custom</option>
       </select>
-      <button class="btn-secondary" onclick="saveCurrentProfile()">Save current as...</button>
+      <button class="btn-secondary" onclick="saveCurrentProfile()">Save current as&hellip;</button>
     </div>
+    <div class="panel-actions">
+      <button class="btn-secondary" id="discover-btn" onclick="runDiscover()">Discover source org</button>
+      <button class="btn-primary" id="run-btn" onclick="runCompare()"
+        {% if not discovered_metadata and not discovered_objects %}disabled title="Run Discover first"{% endif %}>
+        &#8635; Run Compare
+      </button>
+    </div>
+  </div>
 
-    {% if discovered_metadata or discovered_objects %}
+  <div id="status"></div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-btn-metadata" onclick="switchTab('metadata')">Metadata</button>
+    <button class="tab-btn" id="tab-btn-data" onclick="switchTab('data')">Data</button>
+  </div>
+
+  <!-- Metadata Tab -->
+  <div id="tab-metadata" class="tab-content active">
     <div class="discovery-section">
+      {% if discovered_metadata %}
       <div class="discovery-header">
-        <strong>Metadata</strong>
         <span class="count" id="meta-count">{{ discovered_metadata | length }} types found</span>
-        <input type="text" class="discovery-filter" id="meta-filter" placeholder="filter types..." oninput="filterList('meta')">
+        <input type="text" class="discovery-filter" id="meta-filter" placeholder="filter types..." oninput="applyMetaListFilter()">
         <label class="check-label"><input type="checkbox" id="meta-select-all" onchange="selectAllVisible('meta', this.checked)"> Select all</label>
+      </div>
+      <div class="group-filter-bar" id="meta-group-bar">
+        <span style="font-size:12px;color:#888;">Groups:</span>
+        <button class="group-btn" onclick="toggleMetaGroup('Apex &amp; Code')">Apex &amp; Code</button>
+        <button class="group-btn" onclick="toggleMetaGroup('Automation')">Automation</button>
+        <button class="group-btn" onclick="toggleMetaGroup('UI &amp; Pages')">UI &amp; Pages</button>
+        <button class="group-btn" onclick="toggleMetaGroup('Data Model')">Data Model</button>
+        <button class="group-btn" onclick="toggleMetaGroup('Security')">Security</button>
+        <button class="group-btn" onclick="toggleMetaGroup('Integration')">Integration</button>
+        <button class="group-btn" onclick="toggleMetaGroup('AI &amp; Analytics')">AI &amp; Analytics</button>
+        <button class="group-btn" onclick="toggleMetaGroup('Experience')">Experience</button>
+        <button class="group-btn" onclick="toggleMetaGroup('Translations')">Translations</button>
+        <button class="group-btn" onclick="toggleMetaGroup('Org Settings')">Org Settings</button>
       </div>
       <div class="discovery-list" id="meta-list">
         {% for type in discovered_metadata %}
@@ -76,10 +140,95 @@
         </label>
         {% endfor %}
       </div>
+      {% else %}
+      <p class="no-discovery-msg" id="meta-no-msg">Click "Discover source org" to query available metadata types.</p>
+      <div id="meta-discovery-wrap" style="display:none">
+        <div class="discovery-header">
+          <span class="count" id="meta-count"></span>
+          <input type="text" class="discovery-filter" id="meta-filter" placeholder="filter types..." oninput="applyMetaListFilter()">
+          <label class="check-label"><input type="checkbox" id="meta-select-all" onchange="selectAllVisible('meta', this.checked)"> Select all</label>
+        </div>
+        <div class="group-filter-bar" id="meta-group-bar">
+          <span style="font-size:12px;color:#888;">Groups:</span>
+          <button class="group-btn" onclick="toggleMetaGroup('Apex &amp; Code')">Apex &amp; Code</button>
+          <button class="group-btn" onclick="toggleMetaGroup('Automation')">Automation</button>
+          <button class="group-btn" onclick="toggleMetaGroup('UI &amp; Pages')">UI &amp; Pages</button>
+          <button class="group-btn" onclick="toggleMetaGroup('Data Model')">Data Model</button>
+          <button class="group-btn" onclick="toggleMetaGroup('Security')">Security</button>
+          <button class="group-btn" onclick="toggleMetaGroup('Integration')">Integration</button>
+          <button class="group-btn" onclick="toggleMetaGroup('AI &amp; Analytics')">AI &amp; Analytics</button>
+          <button class="group-btn" onclick="toggleMetaGroup('Experience')">Experience</button>
+          <button class="group-btn" onclick="toggleMetaGroup('Translations')">Translations</button>
+          <button class="group-btn" onclick="toggleMetaGroup('Org Settings')">Org Settings</button>
+        </div>
+        <div class="discovery-list" id="meta-list"></div>
+      </div>
+      {% endif %}
     </div>
+
+    <div class="summary-bar" id="meta-summary">
+      {% for type_name, counts in summary.items() %}
+      {% if counts.added > 0 or counts.modified > 0 or counts.removed > 0 %}
+      {% set cat = namespace(is_meta=false) %}
+      {% for r in results %}{% if r.type == type_name and r.category == 'metadata' %}{% set cat.is_meta = true %}{% endif %}{% endfor %}
+      {% if cat.is_meta %}
+      <div class="summary-card" data-category="metadata" data-type="{{ type_name }}" onclick="toggleTypeFilter('metadata', '{{ type_name }}')">
+        <strong>{{ type_name }}</strong><br>
+        <span class="added">+{{ counts.added }}</span>
+        <span class="modified"> ~{{ counts.modified }}</span>
+        <span class="removed"> -{{ counts.removed }}</span>
+      </div>
+      {% endif %}
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <div class="filter-bar" id="meta-status-filter">
+      <span class="label">Status:</span>
+      <button class="filter-btn" data-status="added" onclick="toggleStatusFilter('metadata', 'added')">Added</button>
+      <button class="filter-btn" data-status="modified" onclick="toggleStatusFilter('metadata', 'modified')">Modified</button>
+      <button class="filter-btn" data-status="removed" onclick="toggleStatusFilter('metadata', 'removed')">Removed</button>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn-success" onclick="deploySelected('metadata')">&#8679; Deploy Selected</button>
+      <button class="btn-warning" onclick="deployAll('metadata')">&#8679; Deploy All</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="meta-select-all-rows" onchange="toggleAll(this, 'metadata')"></th>
+          <th>Type</th>
+          <th>Name</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in results %}
+        {% if r.category == 'metadata' %}
+        <tr data-type="{{ r.type }}" data-status="{{ r.status }}">
+          <td><input type="checkbox" class="row-check meta-row-check" data-name="{{ r.name }}" data-type="{{ r.type }}" data-category="metadata"></td>
+          <td>{{ r.type }}</td>
+          <td>{{ r.name }}</td>
+          <td class="{{ r.status }}">{{ r.status }}</td>
+          <td><a href="#" onclick="toggleDiff('mdiff-{{ loop.index }}'); return false;">view diff</a></td>
+        </tr>
+        <tr id="mdiff-{{ loop.index }}" class="diff-row">
+          <td colspan="5"><pre>{{ r.diff | tojson(indent=2) if r.diff else ("Added in source" if r.status == "added" else "Removed from source") }}</pre></td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Data Tab -->
+  <div id="tab-data" class="tab-content">
     <div class="discovery-section">
+      {% if discovered_objects %}
       <div class="discovery-header">
-        <strong>Data</strong>
         <span class="count" id="obj-count">{{ discovered_objects | length }} objects found</span>
         <input type="text" class="discovery-filter" id="obj-filter" placeholder="filter objects..." oninput="filterList('obj')">
         <label class="check-label"><input type="checkbox" id="obj-select-all" onchange="selectAllVisible('obj', this.checked)"> Select all</label>
@@ -93,92 +242,134 @@
         </label>
         {% endfor %}
       </div>
-    </div>
-    {% else %}
-    <p class="no-discovery-msg">Click "Discover source org" to query available metadata types and objects.</p>
-    <div id="discovery-lists" style="display:none">
-      <div class="discovery-section">
+      {% else %}
+      <p class="no-discovery-msg" id="obj-no-msg">Click "Discover source org" to query available data objects.</p>
+      <div id="obj-discovery-wrap" style="display:none">
         <div class="discovery-header">
-          <strong>Metadata</strong>
-          <span class="count" id="meta-count"></span>
-          <input type="text" class="discovery-filter" id="meta-filter" placeholder="filter types..." oninput="filterList('meta')">
-          <label class="check-label"><input type="checkbox" id="meta-select-all" onchange="selectAllVisible('meta', this.checked)"> Select all</label>
-        </div>
-        <div class="discovery-list" id="meta-list"></div>
-      </div>
-      <div class="discovery-section">
-        <div class="discovery-header">
-          <strong>Data</strong>
           <span class="count" id="obj-count"></span>
           <input type="text" class="discovery-filter" id="obj-filter" placeholder="filter objects..." oninput="filterList('obj')">
           <label class="check-label"><input type="checkbox" id="obj-select-all" onchange="selectAllVisible('obj', this.checked)"> Select all</label>
         </div>
         <div class="discovery-list" id="obj-list"></div>
       </div>
+      {% endif %}
     </div>
-    {% endif %}
 
-    <div class="panel-actions">
-      <button class="btn-secondary" id="discover-btn" onclick="runDiscover()">Discover source org</button>
-      <button class="btn-primary" id="run-btn" onclick="runCompare()"
-        {% if not discovered_metadata and not discovered_objects %}disabled title="Run Discover first"{% endif %}>
-        &#8635; Run Compare
-      </button>
-    </div>
-  </div>
-
-  <div class="toolbar">
-    <button class="btn-success" onclick="deploySelected()">&#8679; Deploy Selected</button>
-    <button class="btn-warning" onclick="deployAll()">&#8679; Deploy All</button>
-  </div>
-
-  <div id="status"></div>
-
-  <div class="summary-bar">
-    {% for type_name, counts in summary.items() %}
-    <div class="summary-card">
-      <strong>{{ type_name }}</strong><br>
-      <span class="added">+{{ counts.added }}</span>
-      <span class="modified"> ~{{ counts.modified }}</span>
-      <span class="removed"> -{{ counts.removed }}</span>
-    </div>
-    {% endfor %}
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th><input type="checkbox" id="select-all" onchange="toggleAll(this)"></th>
-        <th>Category</th>
-        <th>Type</th>
-        <th>Name</th>
-        <th>Status</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in results %}
-      <tr>
-        <td><input type="checkbox" class="row-check" data-name="{{ r.name }}" data-type="{{ r.type }}"></td>
-        <td>{{ r.category }}</td>
-        <td>{{ r.type }}</td>
-        <td>{{ r.name }}</td>
-        <td class="{{ r.status }}">{{ r.status }}</td>
-        <td><a href="#" onclick="toggleDiff('diff-{{ loop.index }}'); return false;">view diff</a></td>
-      </tr>
-      <tr id="diff-{{ loop.index }}" class="diff-row">
-        <td colspan="6"><pre>{{ r.diff | tojson(indent=2) if r.diff else ("Added in source" if r.status == "added" else "Removed from source") }}</pre></td>
-      </tr>
+    <div class="summary-bar" id="obj-summary">
+      {% for type_name, counts in summary.items() %}
+      {% if counts.added > 0 or counts.modified > 0 or counts.removed > 0 %}
+      {% set cat = namespace(is_data=false) %}
+      {% for r in results %}{% if r.type == type_name and r.category == 'data' %}{% set cat.is_data = true %}{% endif %}{% endfor %}
+      {% if cat.is_data %}
+      <div class="summary-card" data-category="data" data-type="{{ type_name }}" onclick="toggleTypeFilter('data', '{{ type_name }}')">
+        <strong>{{ type_name }}</strong><br>
+        <span class="added">+{{ counts.added }}</span>
+        <span class="modified"> ~{{ counts.modified }}</span>
+        <span class="removed"> -{{ counts.removed }}</span>
+      </div>
+      {% endif %}
+      {% endif %}
       {% endfor %}
-    </tbody>
-  </table>
+    </div>
+
+    <div class="filter-bar" id="data-status-filter">
+      <span class="label">Status:</span>
+      <button class="filter-btn" data-status="added" onclick="toggleStatusFilter('data', 'added')">Added</button>
+      <button class="filter-btn" data-status="modified" onclick="toggleStatusFilter('data', 'modified')">Modified</button>
+      <button class="filter-btn" data-status="removed" onclick="toggleStatusFilter('data', 'removed')">Removed</button>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn-success" onclick="deploySelected('data')">&#8679; Deploy Selected</button>
+      <button class="btn-warning" onclick="deployAll('data')">&#8679; Deploy All</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="data-select-all-rows" onchange="toggleAll(this, 'data')"></th>
+          <th>Type</th>
+          <th>Name</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in results %}
+        {% if r.category == 'data' %}
+        <tr data-type="{{ r.type }}" data-status="{{ r.status }}">
+          <td><input type="checkbox" class="row-check data-row-check" data-name="{{ r.name }}" data-type="{{ r.type }}" data-category="data"></td>
+          <td>{{ r.type }}</td>
+          <td>{{ r.name }}</td>
+          <td class="{{ r.status }}">{{ r.status }}</td>
+          <td><a href="#" onclick="toggleDiff('ddiff-{{ loop.index }}'); return false;">view diff</a></td>
+        </tr>
+        <tr id="ddiff-{{ loop.index }}" class="diff-row">
+          <td colspan="5"><pre>{{ r.diff | tojson(indent=2) if r.diff else ("Added in source" if r.status == "added" else "Removed from source") }}</pre></td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
   <script>
-    // Items in config.yaml — used to pre-check after a JS-triggered discover
     const CONFIG_METADATA = {{ all_metadata_types | tojson }};
     const CONFIG_OBJECTS = {{ all_data_objects | tojson }};
 
-    // --- Profile state ---
+    // --- Tabs ---
+    function switchTab(name) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      document.getElementById('tab-btn-' + name).classList.add('active');
+    }
+
+    // --- Filters ---
+    const activeTypeFilters = { metadata: new Set(), data: new Set() };
+    const activeStatusFilters = { metadata: new Set(), data: new Set() };
+
+    function toggleTypeFilter(category, type) {
+      const filters = activeTypeFilters[category];
+      if (filters.has(type)) filters.delete(type);
+      else filters.add(type);
+      // Update card visual state
+      document.querySelectorAll(`.summary-card[data-category="${category}"]`).forEach(card => {
+        card.classList.toggle('active', filters.has(card.dataset.type));
+      });
+      applyFilters(category);
+    }
+
+    function toggleStatusFilter(category, status) {
+      const filters = activeStatusFilters[category];
+      if (filters.has(status)) filters.delete(status);
+      else filters.add(status);
+      // Update button visual state
+      document.querySelectorAll(`#${category}-status-filter .filter-btn`).forEach(btn => {
+        btn.classList.toggle('active', filters.has(btn.dataset.status));
+      });
+      applyFilters(category);
+    }
+
+    function applyFilters(category) {
+      const typeFilters = activeTypeFilters[category];
+      const statusFilters = activeStatusFilters[category];
+      const tbody = document.querySelector(`#tab-${category} tbody`);
+      if (!tbody) return;
+      tbody.querySelectorAll('tr[data-type]').forEach(row => {
+        const typeOk = typeFilters.size === 0 || typeFilters.has(row.dataset.type);
+        const statusOk = statusFilters.size === 0 || statusFilters.has(row.dataset.status);
+        const visible = typeOk && statusOk;
+        row.style.display = visible ? '' : 'none';
+        // If a diff row follows, collapse it when the parent is hidden
+        const next = row.nextElementSibling;
+        if (next && next.classList.contains('diff-row') && !visible) {
+          next.classList.remove('open');
+        }
+      });
+    }
+
+    // --- Profiles ---
     let profilesData = {};
 
     async function loadProfilesIntoDropdown() {
@@ -239,21 +430,73 @@
       }
     }
 
+    // --- Metadata group filter ---
+    const METADATA_GROUPS = {
+      'Apex & Code':      ['ApexClass', 'ApexComponent', 'ApexEmailNotifications', 'ApexPage', 'ApexTrigger',
+                           'EmailServicesFunction', 'StaticResource'],
+      'Automation':       ['ApprovalProcess', 'AssignmentRules', 'AutoResponseRules', 'DuplicateRule',
+                           'EscalationRules', 'Flow', 'FlowDefinition', 'MatchingRules', 'Workflow',
+                           'WorkflowRule', 'BusinessProcess'],
+      'UI & Pages':       ['AnimationRule', 'AppMenu', 'AuraDefinitionBundle', 'CustomTab',
+                           'DocumentGenerationSetting', 'FlexiPage', 'HomePageLayout', 'Layout',
+                           'LightningExperienceTheme', 'PathAssistant', 'QuickAction'],
+      'Data Model':       ['CustomField', 'CustomObject', 'CustomObjectTranslation', 'CustomMetadata',
+                           'DecisionTable', 'DecisionTableDatasetLink', 'GlobalValueSet',
+                           'RecordType', 'ReportType', 'ValidationRule'],
+      'Security':         ['Certificate', 'IframeWhiteListUrlSettings', 'PermissionSet',
+                           'PermissionSetGroup', 'Profile', 'ProfilePasswordPolicy',
+                           'ProfileSessionSetting', 'Role', 'SamlSsoConfig', 'SharingRules'],
+      'Integration':      ['ConnectedApp', 'ContentAsset', 'ContextDefinition',
+                           'CustomApplication', 'ESignatureConfig', 'PlatformEventChannelMember'],
+      'AI & Analytics':   ['DecisionTable', 'DecisionTableDatasetLink', 'ExplainabilityActionDefinition',
+                           'ExplainabilityActionVersion', 'ExpressionSetDefinition',
+                           'ExpressionSetDefinitionVersion', 'ForecastingFilter',
+                           'ForecastingFilterCondition', 'ForecastingSourceDefinition',
+                           'ForecastingType', 'ForecastingTypeSource', 'PricingActionParameters',
+                           'PricingRecipe', 'RuleLibraryDefinition'],
+      'Experience':       ['BrandingSet', 'Community', 'ManagedContentType',
+                           'NotificationTypeConfig', 'OmniInteractionConfig', 'TopicsForObjects'],
+      'Translations':     ['CustomLabels', 'CustomObjectTranslation', 'Translations'],
+      'Org Settings':     ['ApplicationSubtypeDefinition', 'BusinessProcessTypeDefinition',
+                           'CampaignInfluenceModel', 'CleanDataService', 'Group',
+                           'InstalledPackage', 'LeadConvertSettings', 'Settings'],
+    };
+
+    let activeMetaGroups = new Set();
+
+    function toggleMetaGroup(groupName) {
+      if (activeMetaGroups.has(groupName)) activeMetaGroups.delete(groupName);
+      else activeMetaGroups.add(groupName);
+      document.querySelectorAll('#meta-group-bar .group-btn').forEach(btn => {
+        btn.classList.toggle('active', activeMetaGroups.has(btn.textContent.trim()));
+      });
+      applyMetaListFilter();
+    }
+
+    function applyMetaListFilter() {
+      const textFilter = (document.getElementById('meta-filter')?.value || '').toLowerCase();
+      const groupTypes = activeMetaGroups.size === 0 ? null
+        : new Set([...activeMetaGroups].flatMap(g => METADATA_GROUPS[g] || []));
+      document.querySelectorAll('.meta-check').forEach(cb => {
+        const val = cb.value;
+        const textOk = !textFilter || val.toLowerCase().includes(textFilter);
+        const groupOk = !groupTypes || groupTypes.has(val);
+        cb.closest('label').style.display = (textOk && groupOk) ? '' : 'none';
+      });
+    }
+
     // --- Discovery ---
     function filterList(type) {
+      if (type === 'meta') { applyMetaListFilter(); return; }
       const filter = document.getElementById(`${type}-filter`).value.toLowerCase();
       document.querySelectorAll(`.${type}-check`).forEach(cb => {
-        const label = cb.closest('label');
-        label.style.display = cb.value.toLowerCase().includes(filter) ? '' : 'none';
+        cb.closest('label').style.display = cb.value.toLowerCase().includes(filter) ? '' : 'none';
       });
     }
 
     function selectAllVisible(type, checked) {
       document.querySelectorAll(`.${type}-check`).forEach(cb => {
-        const label = cb.closest('label');
-        if (label.style.display !== 'none') {
-          cb.checked = checked;
-        }
+        if (cb.closest('label').style.display !== 'none') cb.checked = checked;
       });
       onSelectionChange();
     }
@@ -268,6 +511,7 @@
       ).join('');
       const metaCount = document.getElementById('meta-count');
       if (metaCount) metaCount.textContent = `${(data.metadata_types || []).length} types found`;
+      applyMetaListFilter();
 
       const objList = document.getElementById('obj-list');
       objList.innerHTML = (data.data_objects || []).map(o =>
@@ -276,13 +520,14 @@
       const objCount = document.getElementById('obj-count');
       if (objCount) objCount.textContent = `${(data.data_objects || []).length} objects found`;
 
-      // Show lists if they were hidden (no-cache initial state)
-      const noMsg = document.querySelector('.no-discovery-msg');
-      if (noMsg) noMsg.style.display = 'none';
-      const discoveryLists = document.getElementById('discovery-lists');
-      if (discoveryLists) discoveryLists.style.display = '';
+      // Show discovery sections if they were hidden
+      ['meta', 'obj'].forEach(prefix => {
+        const noMsg = document.getElementById(`${prefix}-no-msg`);
+        if (noMsg) noMsg.style.display = 'none';
+        const wrap = document.getElementById(`${prefix}-discovery-wrap`);
+        if (wrap) wrap.style.display = '';
+      });
 
-      // Enable Run Compare
       const runBtn = document.getElementById('run-btn');
       if (runBtn) { runBtn.disabled = false; runBtn.removeAttribute('title'); }
     }
@@ -346,26 +591,30 @@
     }
 
     // --- Deploy ---
-    function toggleAll(cb) {
-      document.querySelectorAll('.row-check').forEach(c => c.checked = cb.checked);
+    function toggleAll(cb, category) {
+      document.querySelectorAll(`.${category}-row-check`).forEach(c => c.checked = cb.checked);
     }
+
     function toggleDiff(id) {
       document.getElementById(id).classList.toggle('open');
     }
+
     function showStatus(msg, ok = true) {
       const el = document.getElementById('status');
       el.style.display = 'block';
       el.className = ok ? 'status-ok' : 'status-error';
       el.textContent = msg;
     }
-    function getSelected() {
-      return Array.from(document.querySelectorAll('.row-check:checked')).map(c => ({
+
+    function getSelected(category) {
+      return Array.from(document.querySelectorAll(`.${category}-row-check:checked`)).map(c => ({
         name: c.dataset.name,
         type: c.dataset.type,
       }));
     }
-    async function deploySelected() {
-      const selected = getSelected();
+
+    async function deploySelected(category) {
+      const selected = getSelected(category);
       if (!selected.length) { showStatus('No items selected.', false); return; }
       showStatus(`Deploying ${selected.length} selected items...`);
       const res = await fetch('/api/deploy', {
@@ -379,9 +628,10 @@
       const data = await res.json();
       showStatus(data.status === 'ok' ? 'Deploy complete. Check output/deploy/ for logs.' : `Error: ${data.message}`, data.status === 'ok');
     }
-    async function deployAll() {
-      document.querySelectorAll('.row-check').forEach(c => c.checked = true);
-      await deploySelected();
+
+    async function deployAll(category) {
+      document.querySelectorAll(`.${category}-row-check`).forEach(c => c.checked = true);
+      await deploySelected(category);
     }
 
     // --- Init ---

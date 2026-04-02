@@ -15,20 +15,26 @@ def retrieve_metadata(org_alias: str, metadata_types: list, output_dir: str) -> 
       output_dir/classes/ClassName.cls-meta.xml
       output_dir/flows/FlowName.flow-meta.xml
     """
+    if not metadata_types:
+        return
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     metadata_flags = []
     for t in metadata_types:
         metadata_flags += ["--metadata", t]
-    subprocess.run(
+    result = subprocess.run(
         [_SF_CMD, "project", "retrieve", "start"]
         + metadata_flags
         + ["--target-org", org_alias, "--output-dir", str(output_path)],
-        check=True,
+        check=False,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
     )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"sf project retrieve failed for {org_alias}:\n{result.stderr or result.stdout}"
+        )
 
 
 def retrieve_data(org_alias: str, data_objects: list, output_dir: str) -> None:
