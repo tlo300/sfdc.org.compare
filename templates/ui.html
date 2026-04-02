@@ -92,7 +92,7 @@
     <div class="selection-row">
       <label>Profile:</label>
       <select id="profile-select" onchange="applyProfile()">
-        <option value="">Custom</option>
+        <option value="">-- None --</option>
       </select>
       <button class="btn-secondary" onclick="saveCurrentProfile()">Save current as&hellip;</button>
     </div>
@@ -138,7 +138,7 @@
       <div class="discovery-list" id="meta-list">
         {% for type in discovered_metadata %}
         <label class="check-label">
-          <input type="checkbox" class="meta-check" value="{{ type }}"
+          <input type="checkbox" class="meta-check" value="{{ type }}" autocomplete="off"
             onchange="onSelectionChange()"> {{ type }}
         </label>
         {% endfor %}
@@ -209,7 +209,7 @@
       <div class="discovery-list" id="obj-list">
         {% for obj in discovered_objects %}
         <label class="check-label">
-          <input type="checkbox" class="obj-check" value="{{ obj }}"
+          <input type="checkbox" class="obj-check" value="{{ obj }}" autocomplete="off"
             onchange="onSelectionChange()"> {{ obj }}
         </label>
         {% endfor %}
@@ -444,7 +444,7 @@
     function renderDiscoveryResults(data) {
       const metaList = document.getElementById('meta-list');
       metaList.innerHTML = (data.metadata_types || []).map(t =>
-        `<label class="check-label"><input type="checkbox" class="meta-check" value="${t}" onchange="onSelectionChange()"> ${t}</label>`
+        `<label class="check-label"><input type="checkbox" class="meta-check" value="${t}" autocomplete="off" onchange="onSelectionChange()"> ${t}</label>`
       ).join('');
       const metaCount = document.getElementById('meta-count');
       if (metaCount) metaCount.textContent = `${(data.metadata_types || []).length} types found`;
@@ -452,7 +452,7 @@
 
       const objList = document.getElementById('obj-list');
       objList.innerHTML = (data.data_objects || []).map(o =>
-        `<label class="check-label"><input type="checkbox" class="obj-check" value="${o}" onchange="onSelectionChange()"> ${o}</label>`
+        `<label class="check-label"><input type="checkbox" class="obj-check" value="${o}" autocomplete="off" onchange="onSelectionChange()"> ${o}</label>`
       ).join('');
       const objCount = document.getElementById('obj-count');
       if (objCount) objCount.textContent = `${(data.data_objects || []).length} objects found`;
@@ -667,7 +667,8 @@
 
     // --- Init ---
     loadProfilesIntoDropdown();
-    fetchAndRenderResults();
+    // Clear any browser-restored checkbox state
+    document.querySelectorAll('.meta-check, .obj-check').forEach(cb => { cb.checked = false; });
   </script>
 </body>
 </html>

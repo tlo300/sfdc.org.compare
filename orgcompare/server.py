@@ -12,9 +12,17 @@ from orgcompare.retrieve import retrieve_data, retrieve_metadata
 
 _TEMPLATES_DIR = str(Path(__file__).parent.parent / "templates")
 app = Flask(__name__, template_folder=_TEMPLATES_DIR)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 DIFF_FILE = "output/reports/diff.json"
 PROFILES_FILE = "profiles.yaml"
 DISCOVERY_FILE = "discovered.json"
+
+
+@app.after_request
+def no_cache(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 def _load_config() -> dict:
