@@ -80,6 +80,28 @@
     .toolbar { margin-bottom: 16px; display: flex; gap: 10px; align-items: center; }
     .xml-diff-container { overflow-x: auto; }
     .d2h-wrapper { font-size: 12px; }
+
+    /* Two-column layout */
+    .main-layout { display: flex; gap: 16px; align-items: flex-start; }
+    .main-col { flex: 1 1 0; min-width: 0; }
+    .console-col { width: 340px; flex-shrink: 0; }
+    @media (max-width: 900px) { .main-layout { flex-direction: column; } .console-col { width: 100%; } }
+
+    /* Console panel */
+    .console-panel { background: #1e1e1e; border-radius: 4px; overflow: hidden; }
+    .console-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #2d2d2d; }
+    .console-title { color: #ccc; font-weight: bold; font-size: 13px; flex: 1; font-family: monospace; }
+    .console-header select { background: #3c3c3c; color: #ccc; border: 1px solid #555; border-radius: 3px; padding: 2px 6px; font-size: 12px; }
+    .console-header .btn-secondary { padding: 3px 10px; font-size: 12px; background: #3c3c3c; border: 1px solid #555; color: #ccc; border-radius: 3px; }
+    .console-log { font-family: monospace; font-size: 12px; padding: 10px 12px; height: 420px; overflow-y: auto; }
+    .console-line { margin: 2px 0; white-space: pre-wrap; word-break: break-all; line-height: 1.5; }
+    .console-line[data-level="quiet"] { color: #27ae60; }
+    .console-line[data-level="normal"] { color: #ddd; }
+    .console-line[data-level="debug"] { color: #555; }
+    .console-line[data-level="error"] { color: #e74c3c; }
+    .console-log.verbosity-quiet .console-line[data-level="normal"],
+    .console-log.verbosity-quiet .console-line[data-level="debug"] { display: none; }
+    .console-log.verbosity-normal .console-line[data-level="debug"] { display: none; }
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
   <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
@@ -114,7 +136,8 @@
     </div>
   </div>
 
-  <div id="status"></div>
+  <div class="main-layout">
+  <div class="main-col">
 
   <!-- Tabs -->
   <div class="tabs">
@@ -263,6 +286,25 @@
       <tbody id="data-tbody"></tbody>
     </table>
   </div>
+
+  </div><!-- end main-col -->
+
+  <!-- Console Panel -->
+  <div class="console-col">
+    <div class="console-panel">
+      <div class="console-header">
+        <span class="console-title">Console</span>
+        <select id="console-verbosity" onchange="onVerbosityChange()">
+          <option value="debug">Debug</option>
+          <option value="normal" selected>Normal</option>
+          <option value="quiet">Quiet</option>
+        </select>
+        <button class="btn-secondary" onclick="clearConsole()">Clear</button>
+      </div>
+      <div id="console-log" class="console-log verbosity-normal"></div>
+    </div>
+  </div>
+  </div><!-- end main-layout -->
 
   <!-- Manage Orgs Modal -->
   <div id="orgs-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:1000; align-items:center; justify-content:center;">
@@ -767,24 +809,26 @@
       } catch (e) { /* no results yet */ }
     }
 
-    async function runDiscover() {
+    function runDiscover() {
       const btn = document.getElementById('discover-btn');
       btn.disabled = true;
-      showStatus('Discovering — querying source org for metadata types and objects. This may take a minute...');
-      try {
-        const res = await fetch('/api/discover', { method: 'POST' });
-        const data = await res.json();
-        if (res.ok && !data.status) {
-          renderDiscoveryResults(data);
-          showStatus(`Discovery complete: ${(data.metadata_types || []).length} metadata types, ${(data.data_objects || []).length} objects.`);
-        } else {
-          showStatus(`Error: ${data.message || 'Unknown error'}`, false);
+      _closeStream();
+      clearConsole();
+      _activeStream = new EventSource('/api/discover/stream');
+      _activeStream.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        appendConsoleLine(data.level, data.msg);
+        if (data.done) {
+          _closeStream();
+          if (data.level !== 'error') renderDiscoveryResults(data);
+          btn.disabled = false;
         }
-      } catch (e) {
-        showStatus(`Error: ${e.message}`, false);
-      } finally {
+      };
+      _activeStream.onerror = () => {
+        appendConsoleLine('error', 'Connection error. Is the server running?');
+        _closeStream();
         btn.disabled = false;
-      }
+      };
     }
 
     // --- Compare ---
@@ -795,34 +839,36 @@
       };
     }
 
-    async function runCompare() {
+    function runCompare() {
       const btn = document.getElementById('run-btn');
       btn.disabled = true;
       const selection = getSelection();
       if (!selection.metadata_types.length && !selection.data_objects.length) {
-        showStatus('Select at least one metadata type or data object before running.', false);
+        appendConsoleLine('error', 'Select at least one metadata type or data object before running.');
         btn.disabled = false;
         return;
       }
-      showStatus('Running compare — this may take a minute...');
-      try {
-        const res = await fetch('/api/run-compare', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(selection),
-        });
-        const data = await res.json();
-        if (data.status === 'ok') {
-          showStatus(`Compare complete: ${data.total} items.`);
-          await fetchAndRenderResults();
-        } else {
-          showStatus(`Error: ${data.message}`, false);
+      _closeStream();
+      clearConsole();
+      const params = new URLSearchParams({
+        metadata_types: JSON.stringify(selection.metadata_types),
+        data_objects: JSON.stringify(selection.data_objects),
+      });
+      _activeStream = new EventSource(`/api/compare/stream?${params}`);
+      _activeStream.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        appendConsoleLine(data.level, data.msg);
+        if (data.done) {
+          _closeStream();
+          if (data.level !== 'error') fetchAndRenderResults();
+          btn.disabled = false;
         }
-      } catch (e) {
-        showStatus(`Error: ${e.message}`, false);
-      } finally {
+      };
+      _activeStream.onerror = () => {
+        appendConsoleLine('error', 'Connection error. Is the server running?');
+        _closeStream();
         btn.disabled = false;
-      }
+      };
     }
 
     // --- Deploy ---
@@ -851,10 +897,7 @@
     }
 
     function showStatus(msg, ok = true) {
-      const el = document.getElementById('status');
-      el.style.display = 'block';
-      el.className = ok ? 'status-ok' : 'status-error';
-      el.textContent = msg;
+      appendConsoleLine(ok ? 'quiet' : 'error', msg);
     }
 
     function getSelected(category) {
@@ -885,9 +928,47 @@
       await deploySelected(category);
     }
 
+    // --- Console ---
+    let _activeStream = null;
+
+    function _closeStream() {
+      if (_activeStream) { _activeStream.close(); _activeStream = null; }
+    }
+
+    function clearConsole() {
+      document.getElementById('console-log').innerHTML = '';
+    }
+
+    function appendConsoleLine(level, msg) {
+      const log = document.getElementById('console-log');
+      const line = document.createElement('div');
+      line.className = 'console-line';
+      line.dataset.level = level;
+      line.textContent = msg;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function onVerbosityChange() {
+      const val = document.getElementById('console-verbosity').value;
+      localStorage.setItem('orgcompare_console_verbosity', val);
+      const log = document.getElementById('console-log');
+      log.classList.remove('verbosity-quiet', 'verbosity-normal', 'verbosity-debug');
+      log.classList.add(`verbosity-${val}`);
+    }
+
+    function _initConsole() {
+      const saved = localStorage.getItem('orgcompare_console_verbosity') || 'normal';
+      document.getElementById('console-verbosity').value = saved;
+      const log = document.getElementById('console-log');
+      log.classList.remove('verbosity-quiet', 'verbosity-normal', 'verbosity-debug');
+      log.classList.add(`verbosity-${saved}`);
+    }
+
     // --- Init ---
     loadOrgsIntoDropdowns();
     loadProfilesIntoDropdown();
+    _initConsole();
     // Clear any browser-restored checkbox state
     document.querySelectorAll('.meta-check, .obj-check').forEach(cb => { cb.checked = false; });
   </script>
