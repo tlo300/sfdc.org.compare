@@ -125,8 +125,10 @@ def test_discover_data_objects_uses_entity_definition_query():
         discover_data_objects("DEVRCA")
     call_args = mock_run.call_args[0][0]
     assert "EntityDefinition" in " ".join(call_args)
+    assert "LIMIT" in " ".join(call_args)
     assert "--target-org" in call_args
     assert "DEVRCA" in call_args
+    assert "--use-tooling-api" in call_args
 
 
 def test_run_discovery_returns_combined_result(tmp_path):

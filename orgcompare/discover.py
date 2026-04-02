@@ -68,21 +68,34 @@ def discover_metadata_types(org_alias: str, max_workers: int = 10) -> list[str]:
 def discover_data_objects(org_alias: str) -> list[str]:
     """Return sorted list of all queryable SObject API names from the org.
 
-    Uses EntityDefinition SOQL — consistent with the existing data query pattern.
+    EntityDefinition does not support queryMore(), so we paginate via LIMIT/OFFSET.
     """
-    result = subprocess.run(
-        [
-            _SF_CMD, "data", "query",
-            "--query",
-            "SELECT QualifiedApiName FROM EntityDefinition WHERE IsQueryable = true ORDER BY QualifiedApiName",
-            "--target-org", org_alias,
-            "--result-format", "json",
-        ],
-        capture_output=True, encoding="utf-8", errors="replace", check=True,
-    )
-    data = json.loads(result.stdout)
-    records = data.get("result", {}).get("records", [])
-    return sorted([r["QualifiedApiName"] for r in records])
+    page_size = 500
+    names: list[str] = []
+    offset = 0
+    while True:
+        query = (
+            f"SELECT QualifiedApiName FROM EntityDefinition "
+            f"WHERE IsQueryable = true "
+            f"ORDER BY QualifiedApiName "
+            f"LIMIT {page_size} OFFSET {offset}"
+        )
+        result = subprocess.run(
+            [
+                _SF_CMD, "data", "query",
+                "--query", query,
+                "--target-org", org_alias,
+                "--use-tooling-api",
+                "--result-format", "json",
+            ],
+            capture_output=True, encoding="utf-8", errors="replace", check=True,
+        )
+        records = json.loads(result.stdout).get("result", {}).get("records", [])
+        names.extend(r["QualifiedApiName"] for r in records)
+        if len(records) < page_size:
+            break
+        offset += page_size
+    return sorted(names)
 
 
 def run_discovery(org_alias: str, cache_path: str) -> dict:
