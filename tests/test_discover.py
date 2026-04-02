@@ -87,7 +87,7 @@ def test_type_has_content_returns_false_on_invalid_json():
 
 def test_discover_metadata_types_returns_only_types_with_content():
     with patch("orgcompare.discover._list_all_metadata_types", return_value=["ApexClass", "Flow", "Report"]), \
-         patch("orgcompare.discover._type_has_content", side_effect=lambda org, t: t in {"ApexClass", "Report"}):
+         patch("orgcompare.discover._type_has_content", side_effect=lambda org, t, emit=None: t in {"ApexClass", "Report"}):
         from orgcompare.discover import discover_metadata_types
         result = discover_metadata_types("DEVRCA")
     assert result == ["ApexClass", "Report"]  # sorted, Flow excluded
@@ -95,7 +95,7 @@ def test_discover_metadata_types_returns_only_types_with_content():
 
 def test_discover_metadata_types_returns_sorted():
     with patch("orgcompare.discover._list_all_metadata_types", return_value=["Flow", "ApexClass"]), \
-         patch("orgcompare.discover._type_has_content", return_value=True):
+         patch("orgcompare.discover._type_has_content", side_effect=lambda org, t, emit=None: True):
         from orgcompare.discover import discover_metadata_types
         result = discover_metadata_types("DEVRCA")
     assert result == ["ApexClass", "Flow"]
@@ -148,3 +148,47 @@ def test_run_discovery_saves_to_cache(tmp_path):
         run_discovery("DEVRCA", cache_path)
     cached = json.loads((tmp_path / "discovered.json").read_text())
     assert cached == {"metadata_types": ["Flow"], "data_objects": ["Product2"]}
+
+
+def test_run_discovery_calls_emit_quiet_start_and_done(tmp_path):
+    cache_path = str(tmp_path / "discovered.json")
+    calls = []
+    def emit(level, msg, **kw): calls.append((level, msg))
+    with patch("orgcompare.discover.discover_metadata_types", return_value=["ApexClass"]), \
+         patch("orgcompare.discover.discover_data_objects", return_value=["Account"]):
+        from orgcompare.discover import run_discovery
+        run_discovery("DEVRCA", cache_path, emit=emit)
+    levels = [c[0] for c in calls]
+    assert "quiet" in levels
+    assert any("Starting" in msg for _, msg in calls)
+    assert any("Done" in msg for _, msg in calls)
+
+
+def test_run_discovery_without_emit_still_works(tmp_path):
+    cache_path = str(tmp_path / "discovered.json")
+    with patch("orgcompare.discover.discover_metadata_types", return_value=["Flow"]), \
+         patch("orgcompare.discover.discover_data_objects", return_value=["Product2"]):
+        from orgcompare.discover import run_discovery
+        result = run_discovery("DEVRCA", cache_path)  # no emit param
+    assert result["metadata_types"] == ["Flow"]
+
+
+def test_discover_metadata_types_calls_emit_normal(tmp_path):
+    calls = []
+    def emit(level, msg, **kw): calls.append((level, msg))
+    with patch("orgcompare.discover._list_all_metadata_types", return_value=["ApexClass", "Flow"]), \
+         patch("orgcompare.discover._type_has_content", side_effect=lambda org, t, emit=None: t == "ApexClass"):
+        from orgcompare.discover import discover_metadata_types
+        discover_metadata_types("DEVRCA", emit=emit)
+    assert any(level == "normal" for level, _ in calls)
+    assert any("metadata type" in msg.lower() for _, msg in calls)
+
+
+def test_discover_data_objects_calls_emit(tmp_path):
+    calls = []
+    def emit(level, msg, **kw): calls.append((level, msg))
+    payload = json.dumps({"status": 0, "result": {"records": [{"QualifiedApiName": "Account"}]}})
+    with patch("orgcompare.discover.subprocess.run", return_value=_mock_run(payload)):
+        from orgcompare.discover import discover_data_objects
+        discover_data_objects("DEVRCA", emit=emit)
+    assert any("object" in msg.lower() or "queryable" in msg.lower() for _, msg in calls)
