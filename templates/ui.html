@@ -466,6 +466,7 @@
           const r = await fetch(`/api/orgs/login/status/${jobId}`);
           if (r.status === 404) {
             clearInterval(_loginPoll);
+            _loginPoll = null;
             _setLoginStatus('Login session expired, please try again.', 'error');
             _enableLoginForm();
             return;
@@ -476,6 +477,7 @@
         }
         if (statusData.status === 'done') {
           clearInterval(_loginPoll);
+          _loginPoll = null;
           statusEl.style.display = 'none';
           document.getElementById('new-org-alias').value = '';
           document.getElementById('new-org-name').value = '';
@@ -484,6 +486,7 @@
           _renderOrgsList();
         } else if (statusData.status === 'error') {
           clearInterval(_loginPoll);
+          _loginPoll = null;
           _setLoginStatus(`Error: ${statusData.error}`, 'error');
           _enableLoginForm();
         }
