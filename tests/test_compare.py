@@ -111,3 +111,42 @@ def test_metadata_filter_excludes_other_types():
         metadata_types=["Flow"],
     )
     assert results_flow == []
+
+
+def test_metadata_modified_has_xml_diff():
+    results = compare_metadata(
+        str(FIXTURES_DIR / "DEVRCA"),
+        str(FIXTURES_DIR / "UATR"),
+    )
+    modified = [r for r in results if r.name == "OrderService" and r.status == "modified"]
+    assert len(modified) == 1
+    assert modified[0].xml_diff is not None
+    assert modified[0].xml_diff.startswith("---")
+    assert "+++" in modified[0].xml_diff
+    # fromfile=target label (UATR), tofile=source label (DEVRCA)
+    assert "UATR" in modified[0].xml_diff
+    assert "DEVRCA" in modified[0].xml_diff
+
+
+def test_metadata_added_has_xml_diff():
+    results = compare_metadata(
+        str(FIXTURES_DIR / "DEVRCA"),
+        str(FIXTURES_DIR / "UATR"),
+    )
+    added = [r for r in results if r.name == "NewClass" and r.status == "added"]
+    assert len(added) == 1
+    assert added[0].xml_diff is not None
+    # All lines are additions — fromfile=/dev/null
+    assert "/dev/null" in added[0].xml_diff
+    assert "DEVRCA" in added[0].xml_diff
+
+
+def test_metadata_identical_has_no_xml_diff():
+    # identical items have xml_diff == None
+    results = compare_metadata(
+        str(FIXTURES_DIR / "DEVRCA"),
+        str(FIXTURES_DIR / "UATR"),
+    )
+    identical = [r for r in results if r.status == "identical"]
+    for r in identical:
+        assert r.xml_diff is None

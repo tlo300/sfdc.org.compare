@@ -1,6 +1,7 @@
 """
 Metadata comparison module: compares Salesforce metadata XML files between two org directories.
 """
+import difflib
 import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -79,6 +80,9 @@ def compare_metadata(
         for f in target_path.rglob("*-meta.xml")
     }
 
+    source_label = Path(source_dir).name
+    target_label = Path(target_dir).name
+
     results = []
     for rel_path in sorted(set(source_files) | set(target_files)):
         type_name = _infer_type(rel_path)
@@ -90,15 +94,25 @@ def compare_metadata(
 
         if in_source and not in_target:
             source_val = _xml_to_dict(source_files[rel_path])
+            source_lines = source_files[rel_path].read_text(encoding="utf-8").splitlines(keepends=True)
+            xml_diff = "".join(difflib.unified_diff(
+                [], source_lines, fromfile="/dev/null", tofile=source_label,
+            ))
             results.append(DiffResult(
                 category="metadata", type=type_name, name=name,
                 status="added", source_value=source_val, target_value={}, diff={},
+                xml_diff=xml_diff,
             ))
         elif not in_source and in_target:
             target_val = _xml_to_dict(target_files[rel_path])
+            target_lines = target_files[rel_path].read_text(encoding="utf-8").splitlines(keepends=True)
+            xml_diff = "".join(difflib.unified_diff(
+                target_lines, [], fromfile=target_label, tofile="/dev/null",
+            ))
             results.append(DiffResult(
                 category="metadata", type=type_name, name=name,
                 status="removed", source_value={}, target_value=target_val, diff={},
+                xml_diff=xml_diff,
             ))
         else:
             source_val = _xml_to_dict(source_files[rel_path])
@@ -106,9 +120,18 @@ def compare_metadata(
             ddiff = DeepDiff(target_val, source_val, ignore_order=True)
             diff_dict = json.loads(ddiff.to_json()) if ddiff else {}
             status = "modified" if diff_dict else "identical"
+            if status == "modified":
+                source_lines = source_files[rel_path].read_text(encoding="utf-8").splitlines(keepends=True)
+                target_lines = target_files[rel_path].read_text(encoding="utf-8").splitlines(keepends=True)
+                xml_diff = "".join(difflib.unified_diff(
+                    target_lines, source_lines, fromfile=target_label, tofile=source_label,
+                ))
+            else:
+                xml_diff = None
             results.append(DiffResult(
                 category="metadata", type=type_name, name=name,
                 status=status, source_value=source_val, target_value=target_val, diff=diff_dict,
+                xml_diff=xml_diff,
             ))
 
     return results
