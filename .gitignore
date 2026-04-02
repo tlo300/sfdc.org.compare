@@ -16,3 +16,4 @@ discovered.json
 config.yaml
 profiles.yaml
 *.xlsx
+.worktrees/
