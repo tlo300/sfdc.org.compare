@@ -75,19 +75,19 @@ def test_delete_profile(client):
 
 
 def test_run_compare_respects_explicit_empty_metadata(client, tmp_path):
-    # When metadata_types=[] is sent, the server should not fall back to full config.
-    # We can't run a real retrieve here; just verify the endpoint parses the body
-    # without crashing on empty list. Since retrieve will fail (no sf CLI in test env),
-    # we expect a 500 with an error message — not a 200 with the full config substituted.
+    # When metadata_types=[] is sent, the server must not fall back to the full config.
+    # retrieve_metadata short-circuits on empty lists (no sf CLI call), and rglob on
+    # non-existent dirs returns empty in Python 3.12+, so the run completes with 0 results.
     res = client.post(
         "/api/run-compare",
         data=json.dumps({"metadata_types": [], "data_objects": []}),
         content_type="application/json",
     )
     data = res.get_json()
-    # Should attempt the run (and fail due to no sf CLI) rather than substituting full config
-    # The key assertion: status is "error", not "ok" with full config results
-    assert data["status"] == "error"
+    # Key assertions: the run succeeds (no crash), returns 0 results (explicit empty
+    # selection was respected — full config was NOT substituted).
+    assert data["status"] == "ok"
+    assert data["total"] == 0
 
 
 from unittest.mock import patch
