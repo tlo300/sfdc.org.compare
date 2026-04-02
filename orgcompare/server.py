@@ -1,3 +1,7 @@
+import subprocess
+import sys
+import threading
+import uuid
 import yaml
 from collections import defaultdict
 from pathlib import Path
@@ -18,6 +22,7 @@ DIFF_FILE = "output/reports/diff.json"
 PROFILES_FILE = "profiles.yaml"
 DISCOVERY_FILE = "discovered.json"
 ORGS_FILE = "orgs.yaml"
+_LOGIN_JOBS: dict = {}  # job_id -> {"status": str} or {"status": str, "error": str}
 
 
 @app.after_request
@@ -43,6 +48,27 @@ def _build_summary(results: list) -> dict:
     for r in results:
         summary[r.type][r.status] += 1
     return dict(summary)
+
+
+def _run_login(job_id: str, alias: str, name: str, instance_url: str) -> None:
+    """Run `sf org login web` in a background thread and update _LOGIN_JOBS."""
+    sf = "sf.cmd" if sys.platform == "win32" else "sf"
+    result = subprocess.run(
+        [sf, "org", "login", "web", "--alias", alias, "--instance-url", instance_url],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        try:
+            add_org(ORGS_FILE, alias, name)
+            _LOGIN_JOBS[job_id] = {"status": "done"}
+        except ValueError as e:
+            _LOGIN_JOBS[job_id] = {"status": "error", "error": str(e)}
+    else:
+        _LOGIN_JOBS[job_id] = {
+            "status": "error",
+            "error": result.stderr.strip() or "Login failed",
+        }
 
 
 @app.route("/")
@@ -195,6 +221,32 @@ def patch_org_selection():
 def delete_org(alias: str):
     remove_org(ORGS_FILE, alias)
     return jsonify({"status": "ok"})
+
+
+@app.route("/api/orgs/login", methods=["POST"])
+def start_login():
+    body = request.get_json(silent=True) or {}
+    alias = (body.get("alias") or "").strip()
+    name = (body.get("name") or "").strip()
+    instance_url = body.get("instance_url", "https://test.salesforce.com")
+    if not alias or not name:
+        return jsonify({"error": "alias and name are required"}), 400
+    if instance_url not in ("https://login.salesforce.com", "https://test.salesforce.com"):
+        return jsonify({"error": "invalid instance_url"}), 400
+    job_id = str(uuid.uuid4())
+    _LOGIN_JOBS[job_id] = {"status": "running"}
+    threading.Thread(
+        target=_run_login, args=(job_id, alias, name, instance_url), daemon=True
+    ).start()
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/api/orgs/login/status/<job_id>")
+def login_status(job_id: str):
+    job = _LOGIN_JOBS.get(job_id)
+    if not job:
+        return jsonify({"error": "unknown job"}), 404
+    return jsonify(job)
 
 
 @app.route("/api/results", methods=["GET"])
