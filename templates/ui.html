@@ -278,11 +278,16 @@
         </thead>
         <tbody id="orgs-list"></tbody>
       </table>
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
-        <input id="new-org-alias" type="text" placeholder="Alias (e.g. DEVRCA)" style="padding:5px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; width:140px;">
-        <input id="new-org-name" type="text" placeholder="Friendly name" style="padding:5px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; flex:1; min-width:140px;">
-        <button class="btn-primary" onclick="addOrg()">Add</button>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+        <input id="new-org-alias" type="text" placeholder="Alias (e.g. DEVRCA)" style="padding:5px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; width:130px;">
+        <input id="new-org-name" type="text" placeholder="Friendly name" style="padding:5px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; flex:1; min-width:120px;">
+        <select id="new-org-instance" style="padding:5px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px;">
+          <option value="https://test.salesforce.com">Sandbox</option>
+          <option value="https://login.salesforce.com">Production</option>
+        </select>
+        <button class="btn-success" id="login-add-btn" onclick="loginAndAddOrg()">Login &amp; Add</button>
       </div>
+      <div id="login-status" style="display:none; padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:8px;"></div>
       <div style="text-align:right;">
         <button class="btn-secondary" onclick="closeOrgsModal()">Close</button>
       </div>
@@ -413,24 +418,92 @@
       ).join('');
     }
 
-    async function addOrg() {
+    async function loginAndAddOrg() {
       const alias = document.getElementById('new-org-alias').value.trim();
       const name = document.getElementById('new-org-name').value.trim();
-      if (!alias || !name) { showStatus('Alias and name are required.', false); return; }
-      const res = await fetch('/api/orgs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alias, name }),
-      });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        document.getElementById('new-org-alias').value = '';
-        document.getElementById('new-org-name').value = '';
-        await loadOrgsIntoDropdowns();
-        _renderOrgsList();
-      } else {
-        showStatus(`Error: ${data.error}`, false);
+      const instanceUrl = document.getElementById('new-org-instance').value;
+      const statusEl = document.getElementById('login-status');
+      const btn = document.getElementById('login-add-btn');
+      if (!alias || !name) {
+        _setLoginStatus('Alias and name are required.', 'error');
+        return;
       }
+      // Disable form while login is in progress
+      btn.disabled = true;
+      document.getElementById('new-org-alias').disabled = true;
+      document.getElementById('new-org-name').disabled = true;
+      document.getElementById('new-org-instance').disabled = true;
+      _setLoginStatus('\u23f3 Waiting for Salesforce login\u2026 (a browser tab should have opened)', 'info');
+      let jobId;
+      try {
+        const res = await fetch('/api/orgs/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alias, name, instance_url: instanceUrl }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          _setLoginStatus(`Error: ${data.error}`, 'error');
+          _enableLoginForm();
+          return;
+        }
+        jobId = data.job_id;
+      } catch (e) {
+        _setLoginStatus('Network error. Is the server running?', 'error');
+        _enableLoginForm();
+        return;
+      }
+      // Poll for completion
+      const poll = setInterval(async () => {
+        let statusData;
+        try {
+          const r = await fetch(`/api/orgs/login/status/${jobId}`);
+          if (r.status === 404) {
+            clearInterval(poll);
+            _setLoginStatus('Login session expired, please try again.', 'error');
+            _enableLoginForm();
+            return;
+          }
+          statusData = await r.json();
+        } catch (e) {
+          return; // network blip — keep polling
+        }
+        if (statusData.status === 'done') {
+          clearInterval(poll);
+          statusEl.style.display = 'none';
+          document.getElementById('new-org-alias').value = '';
+          document.getElementById('new-org-name').value = '';
+          _enableLoginForm();
+          await loadOrgsIntoDropdowns();
+          _renderOrgsList();
+        } else if (statusData.status === 'error') {
+          clearInterval(poll);
+          _setLoginStatus(`Error: ${statusData.error}`, 'error');
+          _enableLoginForm();
+        }
+      }, 2000);
+    }
+
+    function _setLoginStatus(msg, type) {
+      const el = document.getElementById('login-status');
+      el.textContent = msg;
+      el.style.display = 'block';
+      if (type === 'info') {
+        el.style.background = '#eaf4fd';
+        el.style.border = '1px solid #2980b9';
+        el.style.color = '#2980b9';
+      } else {
+        el.style.background = '#fdf0ed';
+        el.style.border = '1px solid #e74c3c';
+        el.style.color = '#e74c3c';
+      }
+    }
+
+    function _enableLoginForm() {
+      document.getElementById('login-add-btn').disabled = false;
+      document.getElementById('new-org-alias').disabled = false;
+      document.getElementById('new-org-name').disabled = false;
+      document.getElementById('new-org-instance').disabled = false;
     }
 
     async function removeOrg(alias) {
