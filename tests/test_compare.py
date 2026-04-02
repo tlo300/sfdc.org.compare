@@ -141,6 +141,20 @@ def test_metadata_added_has_xml_diff():
     assert "DEVRCA" in added[0].xml_diff
 
 
+def test_metadata_removed_has_xml_diff():
+    results = compare_metadata(
+        str(FIXTURES_DIR / "DEVRCA"),
+        str(FIXTURES_DIR / "UATR"),
+    )
+    removed = [r for r in results if r.status == "removed"]
+    assert len(removed) >= 1
+    r = removed[0]
+    assert r.xml_diff is not None
+    # All lines are deletions — tofile=/dev/null
+    assert "/dev/null" in r.xml_diff
+    assert "UATR" in r.xml_diff
+
+
 def test_metadata_identical_has_no_xml_diff():
     # identical items have xml_diff == None
     results = compare_metadata(
