@@ -286,6 +286,7 @@ def post_discover():
 def discover_stream():
     orgs_data = _load_orgs()
     source = orgs_data["selection"]["source"]
+    ignore_empty = request.args.get("ignoreEmpty") == "true"
     q = queue.Queue()
 
     def emit(level, msg, **extra):
@@ -293,7 +294,7 @@ def discover_stream():
 
     def worker():
         try:
-            result = run_discovery(source, DISCOVERY_FILE, emit=emit)
+            result = run_discovery(source, DISCOVERY_FILE, ignore_empty=ignore_empty, emit=emit)
             q.put({
                 "level": "quiet",
                 "msg": f"Done \u2014 {len(result['metadata_types'])} metadata types, {len(result['data_objects'])} objects",

@@ -126,6 +126,7 @@
     </div>
     <div class="panel-actions">
       <button class="btn-secondary" id="discover-btn" onclick="runDiscover()">Discover source org</button>
+      <label class="check-label" style="margin-left:0.5rem;font-size:0.85rem;align-self:center"><input type="checkbox" id="ignore-empty-cb" autocomplete="off"> Ignore Empty</label>
       <button class="btn-primary" id="run-btn" onclick="runCompare()"
         {% if not discovered_metadata and not discovered_objects %}disabled title="Run Discover first"{% endif %}>
         &#8635; Run Compare
@@ -812,7 +813,8 @@
       _closeStream();
       clearConsole();
       let _cleanClose = false;
-      _activeStream = new EventSource('/api/discover/stream');
+      const ignoreEmpty = document.getElementById('ignore-empty-cb').checked;
+      _activeStream = new EventSource('/api/discover/stream' + (ignoreEmpty ? '?ignoreEmpty=true' : ''));
       _activeStream.onmessage = (e) => {
         const data = JSON.parse(e.data);
         appendConsoleLine(data.level, data.msg);

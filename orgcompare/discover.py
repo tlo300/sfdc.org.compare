@@ -78,10 +78,29 @@ def discover_metadata_types(org_alias: str, max_workers: int = 10, emit=None) ->
     return result
 
 
-def discover_data_objects(org_alias: str, emit=None) -> list[str]:
+def _object_has_records(org_alias: str, obj_name: str) -> bool:
+    """Return True if the org has at least one record for this SObject."""
+    result = subprocess.run(
+        [_SF_CMD, "data", "query",
+         "--query", f"SELECT Id FROM {obj_name} LIMIT 1",
+         "--target-org", org_alias,
+         "--result-format", "json"],
+        capture_output=True, encoding="utf-8", errors="replace",
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        records = json.loads(result.stdout).get("result", {}).get("records", [])
+        return len(records) > 0
+    except (json.JSONDecodeError, KeyError):
+        return False
+
+
+def discover_data_objects(org_alias: str, ignore_empty: bool = False, max_workers: int = 10, emit=None) -> list[str]:
     """Return sorted list of all queryable SObject API names from the org.
 
     EntityDefinition does not support queryMore(), so we paginate via LIMIT/OFFSET.
+    When ignore_empty=True, objects with no records are excluded (parallel check).
     """
     if emit:
         emit("normal", "Querying queryable data objects...")
@@ -116,18 +135,30 @@ def discover_data_objects(org_alias: str, emit=None) -> list[str]:
             break
         offset += page_size
         page += 1
+
+    if ignore_empty:
+        if emit:
+            emit("normal", f"Filtering {len(names)} objects for non-empty records (parallel)...")
+        found = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_object_has_records, org_alias, n): n for n in names}
+            for future in as_completed(futures):
+                if future.result():
+                    found.append(futures[future])
+        names = found
+
     result = sorted(names)
     if emit:
         emit("normal", f"Found {len(result)} queryable objects")
     return result
 
 
-def run_discovery(org_alias: str, cache_path: str, emit=None) -> dict:
+def run_discovery(org_alias: str, cache_path: str, ignore_empty: bool = False, emit=None) -> dict:
     """Run full discovery against the org, save to cache, and return the result."""
     if emit:
         emit("quiet", f"Starting discovery on {org_alias}...")
     metadata_types = discover_metadata_types(org_alias, emit=emit)
-    data_objects = discover_data_objects(org_alias, emit=emit)
+    data_objects = discover_data_objects(org_alias, ignore_empty=ignore_empty, emit=emit)
     result = {"metadata_types": metadata_types, "data_objects": data_objects}
     save_discovery_cache(cache_path, result)
     return result

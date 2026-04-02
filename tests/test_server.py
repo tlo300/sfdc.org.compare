@@ -394,7 +394,7 @@ def test_run_login_subprocess_exception_sets_error(tmp_path, monkeypatch):
 
 
 def test_discover_stream_returns_done_event(client):
-    def fake_discovery(org, cache_path, emit=None):
+    def fake_discovery(org, cache_path, ignore_empty=False, emit=None):
         if emit:
             emit("normal", "test normal message")
         return {"metadata_types": ["ApexClass"], "data_objects": ["Account"]}
@@ -412,7 +412,7 @@ def test_discover_stream_returns_done_event(client):
 
 
 def test_discover_stream_emits_intermediate_message(client):
-    def fake_discovery(org, cache_path, emit=None):
+    def fake_discovery(org, cache_path, ignore_empty=False, emit=None):
         if emit:
             emit("normal", "Listing all metadata types...")
         return {"metadata_types": [], "data_objects": []}
