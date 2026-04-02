@@ -47,7 +47,6 @@ def _build_summary(results: list) -> dict:
 
 @app.route("/")
 def index():
-    config = _load_config()
     orgs_data = _load_orgs()
     discovered = load_discovery_cache(DISCOVERY_FILE)
     return render_template(
