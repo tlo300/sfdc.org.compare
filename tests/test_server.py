@@ -391,3 +391,86 @@ def test_run_login_subprocess_exception_sets_error(tmp_path, monkeypatch):
     assert _LOGIN_JOBS["job-exc"]["status"] == "error"
     assert "sf not found" in _LOGIN_JOBS["job-exc"]["error"]
     del _LOGIN_JOBS["job-exc"]
+
+
+def test_discover_stream_returns_done_event(client):
+    def fake_discovery(org, cache_path, emit=None):
+        if emit:
+            emit("normal", "test normal message")
+        return {"metadata_types": ["ApexClass"], "data_objects": ["Account"]}
+
+    with patch("orgcompare.server.run_discovery", side_effect=fake_discovery), \
+         patch("orgcompare.server._load_orgs", return_value={
+             "selection": {"source": "DEVRCA", "target": "UATR"}, "orgs": []
+         }):
+        res = client.get("/api/discover/stream")
+        body = res.get_data(as_text=True)
+    assert res.status_code == 200
+    assert "text/event-stream" in res.content_type
+    assert '"done": true' in body or '"done":true' in body
+    assert "ApexClass" in body
+
+
+def test_discover_stream_emits_intermediate_message(client):
+    def fake_discovery(org, cache_path, emit=None):
+        if emit:
+            emit("normal", "Listing all metadata types...")
+        return {"metadata_types": [], "data_objects": []}
+
+    with patch("orgcompare.server.run_discovery", side_effect=fake_discovery), \
+         patch("orgcompare.server._load_orgs", return_value={
+             "selection": {"source": "DEVRCA", "target": "UATR"}, "orgs": []
+         }):
+        res = client.get("/api/discover/stream")
+        body = res.get_data(as_text=True)
+    assert "Listing all metadata types" in body
+
+
+def test_discover_stream_emits_error_event_on_exception(client):
+    with patch("orgcompare.server.run_discovery", side_effect=RuntimeError("sf failed")), \
+         patch("orgcompare.server._load_orgs", return_value={
+             "selection": {"source": "DEVRCA", "target": "UATR"}, "orgs": []
+         }):
+        res = client.get("/api/discover/stream")
+        body = res.get_data(as_text=True)
+    assert '"error"' in body
+    assert "sf failed" in body
+
+
+def test_compare_stream_returns_done_event(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text(
+        "source_org: DEVRCA\ntarget_org: UATR\n"
+        "metadata_types: [ApexClass]\n"
+        "data_objects:\n  - name: Product2\n    query: SELECT Id FROM Product2\n    external_id: Name\n"
+    )
+    with patch("orgcompare.server.retrieve_metadata"), \
+         patch("orgcompare.server.retrieve_data"), \
+         patch("orgcompare.server.compare_metadata", return_value=[]), \
+         patch("orgcompare.server.compare_data", return_value=[]), \
+         patch("orgcompare.server.save_results"), \
+         patch("orgcompare.server._load_orgs", return_value={
+             "selection": {"source": "DEVRCA", "target": "UATR"}, "orgs": []
+         }):
+        params = "metadata_types=%5B%22ApexClass%22%5D&data_objects=%5B%22Product2%22%5D"
+        res = client.get(f"/api/compare/stream?{params}")
+        body = res.get_data(as_text=True)
+    assert res.status_code == 200
+    assert "text/event-stream" in res.content_type
+    assert '"done": true' in body or '"done":true' in body
+
+
+def test_compare_stream_emits_error_on_exception(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text(
+        "source_org: DEVRCA\ntarget_org: UATR\n"
+        "metadata_types: [ApexClass]\ndata_objects: []\n"
+    )
+    with patch("orgcompare.server.retrieve_metadata", side_effect=RuntimeError("retrieve failed")), \
+         patch("orgcompare.server._load_orgs", return_value={
+             "selection": {"source": "DEVRCA", "target": "UATR"}, "orgs": []
+         }):
+        res = client.get("/api/compare/stream?metadata_types=%5B%22ApexClass%22%5D&data_objects=%5B%5D")
+        body = res.get_data(as_text=True)
+    assert '"error"' in body
+    assert "retrieve failed" in body

@@ -1,3 +1,5 @@
+import json
+import queue
 import subprocess
 import sys
 import threading
@@ -6,7 +8,8 @@ import yaml
 from collections import defaultdict
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
+from flask import stream_with_context
 
 from orgcompare.compare import compare_data, compare_metadata, load_results, save_results
 from orgcompare.deploy import deploy_data, deploy_metadata
@@ -277,6 +280,121 @@ def post_discover():
         return jsonify(result)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/discover/stream")
+def discover_stream():
+    orgs_data = _load_orgs()
+    source = orgs_data["selection"]["source"]
+    q = queue.Queue()
+
+    def emit(level, msg, **extra):
+        q.put({"level": level, "msg": msg, **extra})
+
+    def worker():
+        try:
+            result = run_discovery(source, DISCOVERY_FILE, emit=emit)
+            q.put({
+                "level": "quiet",
+                "msg": f"Done \u2014 {len(result['metadata_types'])} metadata types, {len(result['data_objects'])} objects",
+                "done": True,
+                **result,
+            })
+        except Exception as e:
+            q.put({"level": "error", "msg": str(e), "done": True})
+        finally:
+            q.put(None)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def generate():
+        while True:
+            item = q.get()
+            if item is None:
+                break
+            yield f"data: {json.dumps(item)}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        content_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
+
+
+@app.route("/api/compare/stream")
+def compare_stream():
+    config = _load_config()
+    orgs_data = _load_orgs()
+    source = orgs_data["selection"]["source"]
+    target = orgs_data["selection"]["target"]
+
+    raw_meta = request.args.get("metadata_types")
+    raw_objs = request.args.get("data_objects")
+
+    metadata_types = json.loads(raw_meta) if raw_meta is not None else config["metadata_types"]
+
+    if raw_objs is not None:
+        obj_names = json.loads(raw_objs)
+        known = {o["name"]: o for o in config["data_objects"]}
+        data_objects = [
+            known[name] if name in known
+            else {"name": name, "query": f"SELECT FIELDS(ALL) FROM {name} LIMIT 200", "external_id": "Id"}
+            for name in obj_names
+        ]
+    else:
+        data_objects = config["data_objects"]
+
+    q = queue.Queue()
+
+    def emit(level, msg, **extra):
+        q.put({"level": level, "msg": msg, **extra})
+
+    def worker():
+        try:
+            emit("quiet", f"Starting compare: {source} \u2192 {target}...")
+            retrieve_metadata(source, metadata_types, f"output/retrieved/{source}", emit=emit)
+            retrieve_metadata(target, metadata_types, f"output/retrieved/{target}", emit=emit)
+            retrieve_data(source, data_objects, f"output/retrieved/{source}", emit=emit)
+            retrieve_data(target, data_objects, f"output/retrieved/{target}", emit=emit)
+            meta_diffs = compare_metadata(
+                f"output/retrieved/{source}",
+                f"output/retrieved/{target}",
+                metadata_types=metadata_types,
+                emit=emit,
+            )
+            data_diffs = compare_data(
+                f"output/retrieved/{source}",
+                f"output/retrieved/{target}",
+                data_objects,
+                emit=emit,
+            )
+            all_diffs = meta_diffs + data_diffs
+            save_results(all_diffs, DIFF_FILE)
+            q.put({
+                "level": "quiet",
+                "msg": f"Done \u2014 {len(all_diffs)} differences found",
+                "done": True,
+                "total": len(all_diffs),
+            })
+        except Exception as e:
+            q.put({"level": "error", "msg": str(e), "done": True})
+        finally:
+            q.put(None)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def generate():
+        while True:
+            item = q.get()
+            if item is None:
+                break
+            yield f"data: {json.dumps(item)}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        content_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
 
 
 def run():
