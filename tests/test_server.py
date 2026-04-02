@@ -152,3 +152,89 @@ def test_run_compare_generates_default_query_for_unknown_object(client):
         unknown = next(o for o in objects if o["name"] == "UnknownObj__c")
         assert "FIELDS(ALL)" in unknown["query"]
         assert "LIMIT 200" in unknown["query"]
+
+
+# --- Org registry endpoint tests ---
+
+def test_get_orgs_bootstraps_from_config(client):
+    """GET /api/orgs should bootstrap orgs.yaml from config.yaml and return DEVRCA/UATR."""
+    res = client.get("/api/orgs")
+    assert res.status_code == 200
+    data = res.get_json()
+    aliases = [o["alias"] for o in data["orgs"]]
+    assert "DEVRCA" in aliases
+    assert "UATR" in aliases
+    assert data["selection"]["source"] == "DEVRCA"
+    assert data["selection"]["target"] == "UATR"
+
+
+def test_post_org_adds_entry(client):
+    res = client.post(
+        "/api/orgs",
+        data=json.dumps({"alias": "PROD", "name": "Production"}),
+        content_type="application/json",
+    )
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "ok"}
+    orgs = client.get("/api/orgs").get_json()["orgs"]
+    assert any(o["alias"] == "PROD" for o in orgs)
+
+
+def test_post_org_missing_alias_returns_400(client):
+    res = client.post(
+        "/api/orgs",
+        data=json.dumps({"name": "No Alias"}),
+        content_type="application/json",
+    )
+    assert res.status_code == 400
+    assert "error" in res.get_json()
+
+
+def test_post_org_duplicate_alias_returns_400(client):
+    client.post(
+        "/api/orgs",
+        data=json.dumps({"alias": "PROD", "name": "Production"}),
+        content_type="application/json",
+    )
+    res = client.post(
+        "/api/orgs",
+        data=json.dumps({"alias": "PROD", "name": "Production 2"}),
+        content_type="application/json",
+    )
+    assert res.status_code == 400
+    assert "error" in res.get_json()
+
+
+def test_delete_org_removes_entry(client):
+    client.post(
+        "/api/orgs",
+        data=json.dumps({"alias": "PROD", "name": "Production"}),
+        content_type="application/json",
+    )
+    res = client.delete("/api/orgs/PROD")
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "ok"}
+    orgs = client.get("/api/orgs").get_json()["orgs"]
+    assert not any(o["alias"] == "PROD" for o in orgs)
+
+
+def test_patch_org_selection_updates_selection(client):
+    res = client.patch(
+        "/api/orgs/selection",
+        data=json.dumps({"source": "UATR", "target": "DEVRCA"}),
+        content_type="application/json",
+    )
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "ok"}
+    sel = client.get("/api/orgs").get_json()["selection"]
+    assert sel == {"source": "UATR", "target": "DEVRCA"}
+
+
+def test_patch_org_selection_unknown_alias_returns_400(client):
+    res = client.patch(
+        "/api/orgs/selection",
+        data=json.dumps({"source": "NOTEXIST", "target": "DEVRCA"}),
+        content_type="application/json",
+    )
+    assert res.status_code == 400
+    assert "error" in res.get_json()
