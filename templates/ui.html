@@ -139,7 +139,6 @@
         {% for type in discovered_metadata %}
         <label class="check-label">
           <input type="checkbox" class="meta-check" value="{{ type }}"
-            {% if type in all_metadata_types %}checked{% endif %}
             onchange="onSelectionChange()"> {{ type }}
         </label>
         {% endfor %}
@@ -170,22 +169,7 @@
       {% endif %}
     </div>
 
-    <div class="summary-bar" id="meta-summary">
-      {% for type_name, counts in summary.items() %}
-      {% if counts.added > 0 or counts.modified > 0 or counts.removed > 0 %}
-      {% set cat = namespace(is_meta=false) %}
-      {% for r in results %}{% if r.type == type_name and r.category == 'metadata' %}{% set cat.is_meta = true %}{% endif %}{% endfor %}
-      {% if cat.is_meta %}
-      <div class="summary-card" data-category="metadata" data-type="{{ type_name }}" onclick="toggleTypeFilter('metadata', '{{ type_name }}')">
-        <strong>{{ type_name }}</strong><br>
-        <span class="added">+{{ counts.added }}</span>
-        <span class="modified"> ~{{ counts.modified }}</span>
-        <span class="removed"> -{{ counts.removed }}</span>
-      </div>
-      {% endif %}
-      {% endif %}
-      {% endfor %}
-    </div>
+    <div class="summary-bar" id="meta-summary"></div>
 
     <div class="filter-bar" id="meta-status-filter">
       <span class="label">Status:</span>
@@ -209,25 +193,7 @@
           <th></th>
         </tr>
       </thead>
-      <tbody>
-        {% for r in results %}
-        {% if r.category == 'metadata' %}
-        <tr data-type="{{ r.type }}" data-status="{{ r.status }}">
-          <td><input type="checkbox" class="row-check meta-row-check" data-name="{{ r.name }}" data-type="{{ r.type }}" data-category="metadata"></td>
-          <td>{{ r.type }}</td>
-          <td>{{ r.name }}</td>
-          <td class="{{ r.status }}">{{ r.status }}</td>
-          <td><a href="#" onclick="toggleDiff('mdiff-{{ loop.index }}'); return false;">view diff</a></td>
-        </tr>
-        <tr id="mdiff-{{ loop.index }}" class="diff-row">
-          <td colspan="5">
-            <div class="xml-diff-container"
-                 data-unified-diff='{{ r.xml_diff | tojson if r.xml_diff else "null" }}'></div>
-          </td>
-        </tr>
-        {% endif %}
-        {% endfor %}
-      </tbody>
+      <tbody id="meta-tbody"></tbody>
     </table>
   </div>
 
@@ -244,7 +210,6 @@
         {% for obj in discovered_objects %}
         <label class="check-label">
           <input type="checkbox" class="obj-check" value="{{ obj }}"
-            {% if obj in all_data_objects %}checked{% endif %}
             onchange="onSelectionChange()"> {{ obj }}
         </label>
         {% endfor %}
@@ -262,22 +227,7 @@
       {% endif %}
     </div>
 
-    <div class="summary-bar" id="obj-summary">
-      {% for type_name, counts in summary.items() %}
-      {% if counts.added > 0 or counts.modified > 0 or counts.removed > 0 %}
-      {% set cat = namespace(is_data=false) %}
-      {% for r in results %}{% if r.type == type_name and r.category == 'data' %}{% set cat.is_data = true %}{% endif %}{% endfor %}
-      {% if cat.is_data %}
-      <div class="summary-card" data-category="data" data-type="{{ type_name }}" onclick="toggleTypeFilter('data', '{{ type_name }}')">
-        <strong>{{ type_name }}</strong><br>
-        <span class="added">+{{ counts.added }}</span>
-        <span class="modified"> ~{{ counts.modified }}</span>
-        <span class="removed"> -{{ counts.removed }}</span>
-      </div>
-      {% endif %}
-      {% endif %}
-      {% endfor %}
-    </div>
+    <div class="summary-bar" id="obj-summary"></div>
 
     <div class="filter-bar" id="data-status-filter">
       <span class="label">Status:</span>
@@ -301,28 +251,11 @@
           <th></th>
         </tr>
       </thead>
-      <tbody>
-        {% for r in results %}
-        {% if r.category == 'data' %}
-        <tr data-type="{{ r.type }}" data-status="{{ r.status }}">
-          <td><input type="checkbox" class="row-check data-row-check" data-name="{{ r.name }}" data-type="{{ r.type }}" data-category="data"></td>
-          <td>{{ r.type }}</td>
-          <td>{{ r.name }}</td>
-          <td class="{{ r.status }}">{{ r.status }}</td>
-          <td><a href="#" onclick="toggleDiff('ddiff-{{ loop.index }}'); return false;">view diff</a></td>
-        </tr>
-        <tr id="ddiff-{{ loop.index }}" class="diff-row">
-          <td colspan="5"><pre>{{ r.diff | tojson(indent=2) if r.diff else ("Added in source" if r.status == "added" else "Removed from source") }}</pre></td>
-        </tr>
-        {% endif %}
-        {% endfor %}
-      </tbody>
+      <tbody id="data-tbody"></tbody>
     </table>
   </div>
 
   <script>
-    const CONFIG_METADATA = {{ all_metadata_types | tojson }};
-    const CONFIG_OBJECTS = {{ all_data_objects | tojson }};
 
     // --- Tabs ---
     function switchTab(name) {
@@ -509,12 +442,9 @@
     }
 
     function renderDiscoveryResults(data) {
-      const configMeta = new Set(CONFIG_METADATA);
-      const configObj = new Set(CONFIG_OBJECTS);
-
       const metaList = document.getElementById('meta-list');
       metaList.innerHTML = (data.metadata_types || []).map(t =>
-        `<label class="check-label"><input type="checkbox" class="meta-check" value="${t}"${configMeta.has(t) ? ' checked' : ''} onchange="onSelectionChange()"> ${t}</label>`
+        `<label class="check-label"><input type="checkbox" class="meta-check" value="${t}" onchange="onSelectionChange()"> ${t}</label>`
       ).join('');
       const metaCount = document.getElementById('meta-count');
       if (metaCount) metaCount.textContent = `${(data.metadata_types || []).length} types found`;
@@ -522,7 +452,7 @@
 
       const objList = document.getElementById('obj-list');
       objList.innerHTML = (data.data_objects || []).map(o =>
-        `<label class="check-label"><input type="checkbox" class="obj-check" value="${o}"${configObj.has(o) ? ' checked' : ''} onchange="onSelectionChange()"> ${o}</label>`
+        `<label class="check-label"><input type="checkbox" class="obj-check" value="${o}" onchange="onSelectionChange()"> ${o}</label>`
       ).join('');
       const objCount = document.getElementById('obj-count');
       if (objCount) objCount.textContent = `${(data.data_objects || []).length} objects found`;
@@ -537,6 +467,84 @@
 
       const runBtn = document.getElementById('run-btn');
       if (runBtn) { runBtn.disabled = false; runBtn.removeAttribute('title'); }
+    }
+
+    // --- Results (lazy-loaded) ---
+    function escHtml(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function renderResults(results, summary) {
+      const metaTbody = document.getElementById('meta-tbody');
+      const dataTbody = document.getElementById('data-tbody');
+      metaTbody.innerHTML = '';
+      dataTbody.innerHTML = '';
+      document.getElementById('meta-summary').innerHTML = '';
+      document.getElementById('obj-summary').innerHTML = '';
+
+      const metaTypes = new Set(results.filter(r => r.category === 'metadata').map(r => r.type));
+      const dataTypes = new Set(results.filter(r => r.category === 'data').map(r => r.type));
+      let metaIdx = 0, dataIdx = 0;
+
+      results.forEach(r => {
+        const isMeta = r.category === 'metadata';
+        const tbody = isMeta ? metaTbody : dataTbody;
+        const diffId = isMeta ? `mdiff-${++metaIdx}` : `ddiff-${++dataIdx}`;
+
+        const tr = document.createElement('tr');
+        tr.dataset.type = r.type;
+        tr.dataset.status = r.status;
+        tr.innerHTML = `<td><input type="checkbox" class="row-check ${r.category}-row-check" data-name="${escHtml(r.name)}" data-type="${escHtml(r.type)}" data-category="${r.category}"></td>
+          <td>${escHtml(r.type)}</td><td>${escHtml(r.name)}</td>
+          <td class="${r.status}">${r.status}</td>
+          <td><a href="#" onclick="toggleDiff('${diffId}'); return false;">view diff</a></td>`;
+        tbody.appendChild(tr);
+
+        const diffTr = document.createElement('tr');
+        diffTr.id = diffId;
+        diffTr.className = 'diff-row';
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        if (isMeta) {
+          const div = document.createElement('div');
+          div.className = 'xml-diff-container';
+          if (r.xml_diff) div.dataset.unifiedDiff = JSON.stringify(r.xml_diff);
+          td.appendChild(div);
+        } else {
+          const pre = document.createElement('pre');
+          pre.textContent = r.diff ? JSON.stringify(r.diff, null, 2) : (r.status === 'added' ? 'Added in source' : 'Removed from source');
+          td.appendChild(pre);
+        }
+        diffTr.appendChild(td);
+        tbody.appendChild(diffTr);
+      });
+
+      // Summary cards
+      for (const [typeName, counts] of Object.entries(summary)) {
+        if (!counts.added && !counts.modified && !counts.removed) continue;
+        let category = metaTypes.has(typeName) ? 'metadata' : dataTypes.has(typeName) ? 'data' : null;
+        if (!category) continue;
+        const bar = document.getElementById(category === 'metadata' ? 'meta-summary' : 'obj-summary');
+        const card = document.createElement('div');
+        card.className = 'summary-card';
+        card.dataset.category = category;
+        card.dataset.type = typeName;
+        card.onclick = () => toggleTypeFilter(category, typeName);
+        card.innerHTML = `<strong>${escHtml(typeName)}</strong><br>
+          <span class="added">+${counts.added}</span>
+          <span class="modified"> ~${counts.modified}</span>
+          <span class="removed"> -${counts.removed}</span>`;
+        bar.appendChild(card);
+      }
+    }
+
+    async function fetchAndRenderResults() {
+      try {
+        const res = await fetch('/api/results');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderResults(data.results || [], data.summary || {});
+      } catch (e) { /* no results yet */ }
     }
 
     async function runDiscover() {
@@ -585,14 +593,14 @@
         });
         const data = await res.json();
         if (data.status === 'ok') {
-          showStatus(`Compare complete: ${data.total} items. Refreshing...`);
-          setTimeout(() => location.reload(), 1500);
+          showStatus(`Compare complete: ${data.total} items.`);
+          await fetchAndRenderResults();
         } else {
           showStatus(`Error: ${data.message}`, false);
-          btn.disabled = false;
         }
       } catch (e) {
         showStatus(`Error: ${e.message}`, false);
+      } finally {
         btn.disabled = false;
       }
     }
@@ -659,6 +667,7 @@
 
     // --- Init ---
     loadProfilesIntoDropdown();
+    fetchAndRenderResults();
   </script>
 </body>
 </html>

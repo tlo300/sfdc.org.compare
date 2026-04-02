@@ -32,17 +32,11 @@ def _build_summary(results: list) -> dict:
 @app.route("/")
 def index():
     config = _load_config()
-    results = load_results(DIFF_FILE) if Path(DIFF_FILE).exists() else []
-    displayed = [r for r in results if r.status != "identical"]
     discovered = load_discovery_cache(DISCOVERY_FILE)
     return render_template(
         "ui.html",
         source_org=config["source_org"],
         target_org=config["target_org"],
-        results=[r.to_dict() for r in displayed],
-        summary=_build_summary(results),
-        all_metadata_types=config["metadata_types"],
-        all_data_objects=[obj["name"] for obj in config["data_objects"]],
         discovered_metadata=discovered.get("metadata_types", []),
         discovered_objects=discovered.get("data_objects", []),
     )
@@ -143,6 +137,16 @@ def create_profile():
 def delete_profile_endpoint(name: str):
     delete_profile(PROFILES_FILE, name)
     return jsonify({"status": "ok"})
+
+
+@app.route("/api/results", methods=["GET"])
+def get_results():
+    results = load_results(DIFF_FILE) if Path(DIFF_FILE).exists() else []
+    displayed = [r for r in results if r.status != "identical"]
+    return jsonify({
+        "results": [r.to_dict() for r in displayed],
+        "summary": _build_summary(results),
+    })
 
 
 @app.route("/api/discover", methods=["GET"])
