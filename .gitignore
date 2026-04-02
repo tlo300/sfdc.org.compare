@@ -15,5 +15,6 @@ Thumbs.db
 discovered.json
 config.yaml
 profiles.yaml
+orgs.yaml
 *.xlsx
 .worktrees/
