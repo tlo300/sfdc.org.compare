@@ -333,7 +333,10 @@
 
     function applyProfile() {
       const name = document.getElementById('profile-select').value;
-      if (!name) return;
+      if (!name) {
+        document.querySelectorAll('.meta-check, .obj-check').forEach(cb => { cb.checked = false; });
+        return;
+      }
       const profile = profilesData[name];
       if (!profile) return;
       const metaSet = new Set(profile.metadata_types || []);
