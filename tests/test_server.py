@@ -238,3 +238,138 @@ def test_patch_org_selection_unknown_alias_returns_400(client):
     )
     assert res.status_code == 400
     assert "error" in res.get_json()
+
+
+from unittest.mock import MagicMock
+from orgcompare.server import _run_login, _LOGIN_JOBS
+
+
+# ── POST /api/orgs/login ────────────────────────────────────────────────────
+
+def test_post_login_missing_alias_returns_400(client):
+    res = client.post(
+        "/api/orgs/login",
+        data=json.dumps({"name": "My Org", "instance_url": "https://test.salesforce.com"}),
+        content_type="application/json",
+    )
+    assert res.status_code == 400
+    assert "error" in res.get_json()
+
+
+def test_post_login_missing_name_returns_400(client):
+    res = client.post(
+        "/api/orgs/login",
+        data=json.dumps({"alias": "DEV", "instance_url": "https://test.salesforce.com"}),
+        content_type="application/json",
+    )
+    assert res.status_code == 400
+    assert "error" in res.get_json()
+
+
+def test_post_login_invalid_instance_url_returns_400(client):
+    res = client.post(
+        "/api/orgs/login",
+        data=json.dumps({"alias": "DEV", "name": "Dev", "instance_url": "https://evil.com"}),
+        content_type="application/json",
+    )
+    assert res.status_code == 400
+    assert res.get_json()["error"] == "invalid instance_url"
+
+
+def test_post_login_returns_job_id(client):
+    with patch("orgcompare.server.threading.Thread") as mock_thread:
+        mock_thread.return_value.start = lambda: None
+        res = client.post(
+            "/api/orgs/login",
+            data=json.dumps({
+                "alias": "DEV", "name": "Dev Sandbox",
+                "instance_url": "https://test.salesforce.com",
+            }),
+            content_type="application/json",
+        )
+    assert res.status_code == 200
+    data = res.get_json()
+    assert "job_id" in data
+    assert len(data["job_id"]) == 36  # UUID format
+
+
+# ── GET /api/orgs/login/status/<job_id> ────────────────────────────────────
+
+def test_login_status_unknown_job_returns_404(client):
+    res = client.get("/api/orgs/login/status/nonexistent-id")
+    assert res.status_code == 404
+    assert "error" in res.get_json()
+
+
+def test_login_status_returns_running(client):
+    _LOGIN_JOBS["test-running"] = {"status": "running"}
+    res = client.get("/api/orgs/login/status/test-running")
+    assert res.status_code == 200
+    assert res.get_json()["status"] == "running"
+    del _LOGIN_JOBS["test-running"]
+
+
+def test_login_status_returns_done(client):
+    _LOGIN_JOBS["test-done"] = {"status": "done"}
+    res = client.get("/api/orgs/login/status/test-done")
+    assert res.status_code == 200
+    assert res.get_json()["status"] == "done"
+    del _LOGIN_JOBS["test-done"]
+
+
+def test_login_status_returns_error(client):
+    _LOGIN_JOBS["test-error"] = {"status": "error", "error": "Auth cancelled"}
+    res = client.get("/api/orgs/login/status/test-error")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["status"] == "error"
+    assert data["error"] == "Auth cancelled"
+    del _LOGIN_JOBS["test-error"]
+
+
+# ── _run_login ──────────────────────────────────────────────────────────────
+
+def test_run_login_success_sets_done(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text(
+        "source_org: A\ntarget_org: B\nmetadata_types: []\ndata_objects: []\n"
+    )
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    with patch("orgcompare.server.subprocess.run", return_value=mock_result):
+        _run_login("job-ok", "NEWORG", "New Org", "https://test.salesforce.com")
+    assert _LOGIN_JOBS["job-ok"]["status"] == "done"
+    del _LOGIN_JOBS["job-ok"]
+
+
+def test_run_login_cli_failure_sets_error(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text(
+        "source_org: A\ntarget_org: B\nmetadata_types: []\ndata_objects: []\n"
+    )
+    mock_result = MagicMock()
+    mock_result.returncode = 1
+    mock_result.stderr = "Authentication failed"
+    with patch("orgcompare.server.subprocess.run", return_value=mock_result):
+        _run_login("job-fail", "NEWORG", "New Org", "https://test.salesforce.com")
+    assert _LOGIN_JOBS["job-fail"]["status"] == "error"
+    assert _LOGIN_JOBS["job-fail"]["error"] == "Authentication failed"
+    del _LOGIN_JOBS["job-fail"]
+
+
+def test_run_login_duplicate_alias_sets_error(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.yaml").write_text(
+        "source_org: A\ntarget_org: B\nmetadata_types: []\ndata_objects: []\n"
+    )
+    # Pre-populate orgs.yaml with the alias we'll try to add
+    (tmp_path / "orgs.yaml").write_text(
+        "orgs:\n- alias: NEWORG\n  name: Existing\nselection:\n  source: ''\n  target: ''\n"
+    )
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    with patch("orgcompare.server.subprocess.run", return_value=mock_result):
+        _run_login("job-dup", "NEWORG", "New Org", "https://test.salesforce.com")
+    assert _LOGIN_JOBS["job-dup"]["status"] == "error"
+    assert "already exists" in _LOGIN_JOBS["job-dup"]["error"]
+    del _LOGIN_JOBS["job-dup"]
