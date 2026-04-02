@@ -130,6 +130,4 @@ def run_discovery(org_alias: str, cache_path: str, emit=None) -> dict:
     data_objects = discover_data_objects(org_alias, emit=emit)
     result = {"metadata_types": metadata_types, "data_objects": data_objects}
     save_discovery_cache(cache_path, result)
-    if emit:
-        emit("quiet", f"Done — {len(metadata_types)} metadata types, {len(data_objects)} objects")
     return result

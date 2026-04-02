@@ -150,7 +150,7 @@ def test_run_discovery_saves_to_cache(tmp_path):
     assert cached == {"metadata_types": ["Flow"], "data_objects": ["Product2"]}
 
 
-def test_run_discovery_calls_emit_quiet_start_and_done(tmp_path):
+def test_run_discovery_calls_emit_quiet_on_start(tmp_path):
     cache_path = str(tmp_path / "discovered.json")
     calls = []
     def emit(level, msg, **kw): calls.append((level, msg))
@@ -161,7 +161,6 @@ def test_run_discovery_calls_emit_quiet_start_and_done(tmp_path):
     levels = [c[0] for c in calls]
     assert "quiet" in levels
     assert any("Starting" in msg for _, msg in calls)
-    assert any("Done" in msg for _, msg in calls)
 
 
 def test_run_discovery_without_emit_still_works(tmp_path):

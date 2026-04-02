@@ -317,7 +317,7 @@ def discover_stream():
     return Response(
         stream_with_context(generate()),
         content_type="text/event-stream",
-        headers={"X-Accel-Buffering": "no"},
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
 
 
@@ -395,7 +395,7 @@ def compare_stream():
     return Response(
         stream_with_context(generate()),
         content_type="text/event-stream",
-        headers={"X-Accel-Buffering": "no"},
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
 
 
