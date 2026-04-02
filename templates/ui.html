@@ -811,17 +811,20 @@
       btn.disabled = true;
       _closeStream();
       clearConsole();
+      let _cleanClose = false;
       _activeStream = new EventSource('/api/discover/stream');
       _activeStream.onmessage = (e) => {
         const data = JSON.parse(e.data);
         appendConsoleLine(data.level, data.msg);
         if (data.done) {
+          _cleanClose = true;
           _closeStream();
           if (data.level !== 'error') renderDiscoveryResults(data);
           btn.disabled = false;
         }
       };
       _activeStream.onerror = () => {
+        if (_cleanClose) return;
         appendConsoleLine('error', 'Connection error. Is the server running?');
         _closeStream();
         btn.disabled = false;
@@ -847,6 +850,7 @@
       }
       _closeStream();
       clearConsole();
+      let _cleanClose = false;
       const params = new URLSearchParams({
         metadata_types: JSON.stringify(selection.metadata_types),
         data_objects: JSON.stringify(selection.data_objects),
@@ -856,12 +860,14 @@
         const data = JSON.parse(e.data);
         appendConsoleLine(data.level, data.msg);
         if (data.done) {
+          _cleanClose = true;
           _closeStream();
           if (data.level !== 'error') fetchAndRenderResults();
           btn.disabled = false;
         }
       };
       _activeStream.onerror = () => {
+        if (_cleanClose) return;
         appendConsoleLine('error', 'Connection error. Is the server running?');
         _closeStream();
         btn.disabled = false;
